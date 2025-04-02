@@ -1,258 +1,195 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, 
   View, 
   Text, 
-  TouchableOpacity, 
-  ScrollView,
-  FlatList,
-  Image,
-  RefreshControl,
+  ScrollView, 
+  RefreshControl, 
+  TouchableOpacity,
   ActivityIndicator,
-  Dimensions,
-  Alert
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { useFocusEffect } from '@react-navigation/native';
-import walletService from '../services/walletService';
+import { CryptoCard } from '../components/cards/CryptoCard';
+import { ActionButton } from '../components/ui/ActionButton';
+import { walletService } from '../services/walletService';
+import { Ionicons } from '@expo/vector-icons';
+import { BRBITLogo } from '../components/BRBITLogo';
+import { colors } from '../styles/colors';
+import { borderRadius, spacing, typography } from '../styles/styles';
 
 type DashboardScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 };
 
-const { width } = Dimensions.get('window');
-
-// Dados simulados para o exemplo
-const mockWallets = [
-  { id: '1', name: 'Bitcoin', symbol: 'BTC', balance: 0.0025, value: 125.34, icon: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png?v=025' },
-  { id: '2', name: 'Ethereum', symbol: 'ETH', balance: 0.15, value: 350.78, icon: 'https://cryptologos.cc/logos/ethereum-eth-logo.png?v=025' },
-  { id: '3', name: 'Solana', symbol: 'SOL', balance: 3.5, value: 189.23, icon: 'https://cryptologos.cc/logos/solana-sol-logo.png?v=025' },
-];
-
-const mockTransactions = [
-  { id: '1', type: 'receive', amount: 0.0025, coin: 'BTC', date: '2023-03-28', address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa', status: 'completed' },
-  { id: '2', type: 'send', amount: 0.05, coin: 'ETH', date: '2023-03-25', address: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e', status: 'completed' },
-  { id: '3', type: 'receive', amount: 2.5, coin: 'SOL', date: '2023-03-20', address: '9ZNmBLQdCkE6mqZQkEi3MYwRcQs2GjLGSvBL7jvGrVxU', status: 'completed' },
-];
+type TabType = 'Crypto' | 'NFTs';
 
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
-  const [wallets, setWallets] = useState(mockWallets);
-  const [transactions, setTransactions] = useState(mockTransactions);
-  const [totalBalance, setTotalBalance] = useState<number>(665.35); 
+  const [wallets, setWallets] = useState<any[]>([]);
+  const [totalBalance, setTotalBalance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabType>('Crypto');
 
-  // Simular uma chamada de API para buscar os dados da carteira e transações
-  const fetchWalletData = async () => {
+  const fetchWalletData = useCallback(async () => {
     try {
       setLoading(true);
-      // Simular um atraso de API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Buscar dados da carteira usando o serviço
+      const walletsData = walletService.getWallets();
       
-      // Em um aplicativo real, aqui faríamos a chamada para o serviço de carteira
-      // const fetchedWallets = walletService.getWallets();
-      // setWallets(fetchedWallets);
+      // Calcular saldo total
+      const total = walletsData.reduce((sum, wallet) => sum + wallet.balance, 0);
       
-      // Calcular o saldo total
-      const total = wallets.reduce((sum, wallet) => sum + wallet.value, 0);
+      setWallets(walletsData);
       setTotalBalance(total);
-      
-      setLoading(false);
     } catch (error) {
       console.error('Erro ao buscar dados da carteira:', error);
+    } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Usar useFocusEffect para recarregar os dados quando a tela receber foco
   useFocusEffect(
     useCallback(() => {
       fetchWalletData();
-    }, [])
+    }, [fetchWalletData])
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchWalletData();
     setRefreshing(false);
-  }, []);
+  }, [fetchWalletData]);
+
+  const handleWalletPress = (wallet: any) => {
+    // Navegar para detalhes da carteira quando o usuário clicar em um cartão
+    navigation.navigate('Transaction', { mode: 'send', walletId: wallet.symbol });
+  };
 
   const handleSendPress = () => {
-    navigation.navigate('Transaction', { type: 'send' });
+    navigation.navigate('Transaction', { mode: 'send' });
   };
 
   const handleReceivePress = () => {
-    navigation.navigate('Transaction', { type: 'receive' });
+    navigation.navigate('Transaction', { mode: 'receive' });
+  };
+
+  const handleExchangePress = () => {
+    // Implementar funcionalidade de troca
   };
 
   const handleSettingsPress = () => {
     navigation.navigate('Settings');
   };
 
-  const renderWalletItem = ({ item }: { item: typeof mockWallets[0] }) => (
-    <TouchableOpacity 
-      style={styles.walletCard}
-      onPress={() => navigation.navigate('Transaction', { type: 'send', currency: item.symbol })}
-    >
-      <View style={styles.walletIconContainer}>
-        <Image
-          source={{ uri: item.icon }}
-          style={styles.walletIcon}
-          resizeMode="contain"
-        />
-      </View>
-      <View style={styles.walletInfo}>
-        <Text style={styles.walletName}>{item.name}</Text>
-        <Text style={styles.walletBalance}>{item.balance} {item.symbol}</Text>
-      </View>
-      <View style={styles.walletValue}>
-        <Text style={styles.walletValueText}>${item.value.toFixed(2)}</Text>
-        <Text style={styles.walletChangeText}>+2.5%</Text>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderTransactionItem = ({ item }: { item: typeof mockTransactions[0] }) => (
-    <TouchableOpacity 
-      style={styles.transactionItem}
-      onPress={() => Alert.alert('Detalhes da Transação', `ID: ${item.id}\nEndereço: ${item.address}\nStatus: ${item.status}`)}
-    >
-      <View style={styles.transactionIconContainer}>
-        <View style={[
-          styles.transactionIcon, 
-          item.type === 'receive' ? styles.receiveIcon : styles.sendIcon
-        ]}>
-          <Text style={styles.transactionIconText}>
-            {item.type === 'receive' ? '↓' : '↑'}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.transactionInfo}>
-        <Text style={styles.transactionTitle}>
-          {item.type === 'receive' ? 'Recebido' : 'Enviado'}
-        </Text>
-        <Text style={styles.transactionDate}>{item.date}</Text>
-      </View>
-      <View style={styles.transactionAmount}>
-        <Text style={[
-          styles.transactionAmountText,
-          item.type === 'receive' ? styles.receiveText : styles.sendText
-        ]}>
-          {item.type === 'receive' ? '+' : '-'}{item.amount} {item.coin}
-        </Text>
-        <Text style={styles.transactionValueText}>
-          ${item.type === 'receive' 
-              ? (item.amount * 35000).toFixed(2) 
-              : (-item.amount * 35000).toFixed(2)}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderEmptyList = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>Nenhuma transação encontrada</Text>
-    </View>
-  );
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    });
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
+      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+      
       <View style={styles.header}>
-        <Text style={styles.greeting}>Olá!</Text>
+        <BRBITLogo size="small" />
         <TouchableOpacity onPress={handleSettingsPress}>
-          <Text style={styles.settingsIcon}>⚙️</Text>
+          <Ionicons name="settings-outline" size={24} color={colors.textLight} />
         </TouchableOpacity>
       </View>
-
-      <ScrollView 
-        contentContainerStyle={styles.scrollContainer}
+      
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#007AFF']}
-            tintColor={'#007AFF'}
+            colors={[colors.secondary]}
+            tintColor={colors.secondary}
           />
         }
       >
-        <View style={styles.balanceContainer}>
-          <Text style={styles.balanceLabel}>Saldo Total</Text>
-          {loading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.balanceValue}>${totalBalance.toFixed(2)}</Text>
-          )}
-          <Text style={styles.balanceChange}>+$25.42 (3.8%) hoje</Text>
+        {/* Total Assets Card */}
+        <View style={styles.assetsCard}>
+          <Text style={styles.assetsLabel}>Total Assets</Text>
+          <Text style={styles.assetsValue}>
+            {loading ? <ActivityIndicator size="small" color={colors.textLight} /> : formatCurrency(totalBalance)}
+          </Text>
+          
+          <View style={styles.actionButtonsRow}>
+            <ActionButton
+              icon="add"
+              label="Comprar"
+              onPress={() => {}}
+              backgroundColor={colors.primary}
+            />
+            <ActionButton
+              icon="arrow-up"
+              label="Enviar"
+              onPress={handleSendPress}
+              backgroundColor={colors.primary}
+            />
+            <ActionButton
+              icon="arrow-down"
+              label="Receber"
+              onPress={handleReceivePress}
+              backgroundColor={colors.primary}
+            />
+            <ActionButton
+              icon="analytics"
+              label="Exchange"
+              onPress={handleExchangePress}
+              backgroundColor={colors.primary}
+            />
+          </View>
         </View>
-
-        <View style={styles.actionsContainer}>
+        
+        {/* Tabs */}
+        <View style={styles.tabContainer}>
           <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleSendPress}
+            style={[styles.tab, activeTab === 'Crypto' && styles.activeTab]} 
+            onPress={() => setActiveTab('Crypto')}
           >
-            <View style={styles.actionIcon}>
-              <Text style={styles.actionIconText}>↑</Text>
-            </View>
-            <Text style={styles.actionText}>Enviar</Text>
+            <Text style={[styles.tabText, activeTab === 'Crypto' && styles.activeTabText]}>Crypto</Text>
           </TouchableOpacity>
-
+          
           <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handleReceivePress}
+            style={[styles.tab, activeTab === 'NFTs' && styles.activeTab]} 
+            onPress={() => setActiveTab('NFTs')}
           >
-            <View style={styles.actionIcon}>
-              <Text style={styles.actionIconText}>↓</Text>
-            </View>
-            <Text style={styles.actionText}>Receber</Text>
+            <Text style={[styles.tabText, activeTab === 'NFTs' && styles.activeTabText]}>NFTs</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => Alert.alert('Troca', 'Funcionalidade de troca em desenvolvimento')}
-          >
-            <View style={styles.actionIcon}>
-              <Text style={styles.actionIconText}>↔️</Text>
-            </View>
-            <Text style={styles.actionText}>Trocar</Text>
-          </TouchableOpacity>
+          
+          <View style={styles.manageContainer}>
+            <Text style={styles.manageText}>Manage</Text>
+          </View>
         </View>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Suas Carteiras</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeAllText}>Ver todas</Text>
-          </TouchableOpacity>
-        </View>
-
-        <FlatList
-          data={wallets}
-          renderItem={renderWalletItem}
-          keyExtractor={item => item.id}
-          style={styles.walletsList}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={false}
-        />
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Transações Recentes</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeAllText}>Ver todas</Text>
-          </TouchableOpacity>
-        </View>
-
-        <FlatList
-          data={transactions}
-          renderItem={renderTransactionItem}
-          keyExtractor={item => item.id}
-          style={styles.transactionsList}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={false}
-          ListEmptyComponent={renderEmptyList}
-        />
+        
+        {/* Lista de moedas */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.secondary} />
+          </View>
+        ) : (
+          <View style={styles.cryptoList}>
+            {wallets.map((wallet) => (
+              <CryptoCard 
+                key={wallet.symbol}
+                symbol={wallet.symbol}
+                name={wallet.name}
+                amount={wallet.amount}
+                value={wallet.balance}
+                percentChange={wallet.percentChange || 0}
+                onPress={() => handleWalletPress(wallet)}
+              />
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -261,220 +198,82 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    padding: 20,
+    backgroundColor: colors.primary,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
   },
-  greeting: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333333',
+  scrollContent: {
+    padding: spacing.md,
   },
-  settingsIcon: {
-    fontSize: 24,
+  assetsCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
   },
-  balanceContainer: {
-    backgroundColor: '#007AFF',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  assetsLabel: {
+    fontSize: typography.fontSizes.md,
+    color: colors.textLight,
+    opacity: 0.8,
+    marginBottom: spacing.xs,
   },
-  balanceLabel: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 8,
+  assetsValue: {
+    fontSize: typography.fontSizes.jumbo,
+    color: colors.textLight,
+    fontWeight: 700,
+    marginBottom: spacing.md,
   },
-  balanceValue: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  balanceChange: {
-    fontSize: 14,
-    color: '#AEDCFF',
-  },
-  actionsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 30,
-  },
-  actionButton: {
-    alignItems: 'center',
-  },
-  actionIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#F5F7FA',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  actionIconText: {
-    fontSize: 24,
-    color: '#007AFF',
-  },
-  actionText: {
-    fontSize: 16,
-    color: '#333333',
-    fontWeight: '500',
-  },
-  sectionHeader: {
+  actionButtonsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    marginTop: spacing.md,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333333',
-  },
-  seeAllText: {
-    fontSize: 14,
-    color: '#007AFF',
-  },
-  walletsList: {
-    marginBottom: 24,
-  },
-  walletCard: {
+  tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F5F7FA',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    marginVertical: spacing.md,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
   },
-  walletIconContainer: {
-    marginRight: 16,
+  tab: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+    marginRight: spacing.sm,
+    backgroundColor: colors.darkBackground,
   },
-  walletIcon: {
-    width: 40,
-    height: 40,
+  activeTab: {
+    backgroundColor: colors.darkBackground,
   },
-  walletInfo: {
-    flex: 1,
+  tabText: {
+    color: colors.textLight,
+    opacity: 0.7,
+    fontWeight: 500,
   },
-  walletName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333333',
-    marginBottom: 4,
+  activeTabText: {
+    color: colors.textLight,
+    opacity: 1,
+    fontWeight: 600,
   },
-  walletBalance: {
-    fontSize: 14,
-    color: '#666666',
+  manageContainer: {
+    marginLeft: 'auto',
   },
-  walletValue: {
-    alignItems: 'flex-end',
+  manageText: {
+    color: colors.secondary,
+    fontWeight: 600,
   },
-  walletValueText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333333',
-    marginBottom: 4,
+  cryptoList: {
+    marginBottom: spacing.md,
   },
-  walletChangeText: {
-    fontSize: 12,
-    color: '#4CD964',
-  },
-  transactionsList: {
-    flex: 1,
-  },
-  transactionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  transactionIconContainer: {
-    marginRight: 16,
-  },
-  transactionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  loadingContainer: {
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: spacing.xl,
   },
-  receiveIcon: {
-    backgroundColor: 'rgba(76, 217, 100, 0.15)',
-  },
-  sendIcon: {
-    backgroundColor: 'rgba(255, 59, 48, 0.15)',
-  },
-  transactionIconText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  transactionInfo: {
-    flex: 1,
-  },
-  transactionTitle: {
-    fontSize: 16,
-    color: '#333333',
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  transactionDate: {
-    fontSize: 14,
-    color: '#666666',
-  },
-  transactionAmount: {
-    alignItems: 'flex-end',
-  },
-  transactionAmountText: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  transactionValueText: {
-    fontSize: 12,
-    color: '#666666',
-  },
-  receiveText: {
-    color: '#4CD964',
-  },
-  sendText: {
-    color: '#FF3B30',
-  },
-  emptyContainer: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666666',
-    textAlign: 'center',
-  }
 });
 
 export default DashboardScreen; 

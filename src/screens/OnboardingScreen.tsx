@@ -3,26 +3,25 @@ import {
   StyleSheet, 
   View, 
   Text, 
-  Image, 
   TouchableOpacity, 
-  SafeAreaView,
+  Dimensions, 
   StatusBar,
-  Dimensions
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import { BRBITLogo } from '../components/BRBITLogo';
+import { Button } from '../components/ui/Button';
+import { colors } from '../styles/colors';
+import { borderRadius, spacing, typography } from '../styles/styles';
 
-type OnboardingScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
-  'Onboarding'
->;
+type OnboardingScreenProps = {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'Onboarding'>;
+};
 
-const { width, height } = Dimensions.get('window');
+const windowWidth = Dimensions.get('window').width;
 
-const OnboardingScreen: React.FC = () => {
-  const navigation = useNavigation<OnboardingScreenNavigationProp>();
-
+const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
   const handleCreateWallet = () => {
     navigation.navigate('CreateWallet');
   };
@@ -33,79 +32,31 @@ const OnboardingScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
-      <View style={styles.logoContainer}>
-        <View 
-          style={[styles.logo, {backgroundColor: '#A3D9A5', justifyContent: 'center', alignItems: 'center', borderRadius: 50}]}
-        >
-          <Text style={{fontSize: 36, color: '#000000'}}>🔐</Text>
-        </View>
-      </View>
+      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
       
       <View style={styles.contentContainer}>
-        <Text style={styles.title}>Bem-vindo à HotWallet</Text>
+        <View style={styles.logoContainer}>
+          <BRBITLogo size="large" />
+        </View>
         
-        <Text style={styles.subtitle}>
-          Carteira segura e descentralizada para suas criptomoedas
-        </Text>
-        
-        <View style={styles.featuresContainer}>
-          <View style={styles.featureItem}>
-            <View style={styles.featureIcon}>
-              <Text style={styles.featureIconText}>🔒</Text>
-            </View>
-            <View style={styles.featureTextContainer}>
-              <Text style={styles.featureTitle}>Segurança Máxima</Text>
-              <Text style={styles.featureDescription}>
-                Sua frase semente nunca é armazenada no dispositivo
-              </Text>
-            </View>
-          </View>
+        <View style={styles.buttonContainer}>
+          <Button 
+            title="CRIAR CARTEIRA" 
+            onPress={handleCreateWallet} 
+            variant="primary"
+            size="large"
+            fullWidth
+            style={styles.createButton}
+          />
           
-          <View style={styles.featureItem}>
-            <View style={styles.featureIcon}>
-              <Text style={styles.featureIconText}>🔄</Text>
-            </View>
-            <View style={styles.featureTextContainer}>
-              <Text style={styles.featureTitle}>Multi-blockchain</Text>
-              <Text style={styles.featureDescription}>
-                Suporte para Ethereum, Bitcoin e Solana
-              </Text>
-            </View>
-          </View>
-          
-          <View style={styles.featureItem}>
-            <View style={styles.featureIcon}>
-              <Text style={styles.featureIconText}>👆</Text>
-            </View>
-            <View style={styles.featureTextContainer}>
-              <Text style={styles.featureTitle}>Autenticação Biométrica</Text>
-              <Text style={styles.featureDescription}>
-                Use impressão digital ou reconhecimento facial
-              </Text>
-            </View>
+          <View style={styles.importContainer}>
+            <Text style={styles.alreadyHaveText}>Já tem uma carteira?</Text>
+            <TouchableOpacity onPress={handleRestoreWallet}>
+              <Text style={styles.importText}>Importar</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
-      
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity 
-          style={[styles.button, styles.primaryButton]} 
-          onPress={handleCreateWallet}
-        >
-          <Text style={styles.primaryButtonText}>Criar Nova Carteira</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.button, styles.secondaryButton]} 
-          onPress={handleRestoreWallet}
-        >
-          <Text style={styles.secondaryButtonText}>Restaurar Carteira Existente</Text>
-        </TouchableOpacity>
-      </View>
-      
-      <Text style={styles.versionText}>Versão 1.0.0</Text>
     </SafeAreaView>
   );
 };
@@ -113,105 +64,43 @@ const OnboardingScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginTop: height * 0.05,
-  },
-  logo: {
-    width: width * 0.4,
-    height: width * 0.4,
+    backgroundColor: colors.primary,
   },
   contentContainer: {
-    width: '100%',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#000000',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#555555',
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  featuresContainer: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  featureIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#F9E79F',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 15,
-  },
-  featureIconText: {
-    fontSize: 24,
-  },
-  featureTextContainer: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.xl,
   },
-  featureTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-    marginBottom: 4,
-  },
-  featureDescription: {
-    fontSize: 14,
-    color: '#555555',
+  logoContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   buttonContainer: {
     width: '100%',
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
-  button: {
-    width: '100%',
+  createButton: {
     height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
+    backgroundColor: colors.secondary,
+    borderRadius: borderRadius.md,
+  },
+  importContainer: {
+    flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 16,
+    alignItems: 'center',
+    marginTop: spacing.lg,
   },
-  primaryButton: {
-    backgroundColor: '#A3D9A5',
+  alreadyHaveText: {
+    color: colors.textLight,
+    fontSize: typography.fontSizes.md,
+    marginRight: spacing.xs,
   },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#A3D9A5',
-  },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  versionText: {
-    fontSize: 12,
-    color: '#888888',
-    marginBottom: 10,
+  importText: {
+    color: colors.secondary,
+    fontSize: typography.fontSizes.md,
+    fontWeight: 600,
   },
 });
 
