@@ -1,27 +1,30 @@
 {
-  "name": "@brbit/wallet-core",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "description": "Núcleo puro e testável da carteira BR Bit (Bitcoin, BIP39/BIP32/BIP84, PSBT)",
-  "scripts": {
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@noble/ciphers": "^2.4.0",
-    "@noble/curves": "^2.4.0",
-    "@noble/hashes": "^2.4.0",
-    "@scure/bip32": "^2.4.0",
-    "@scure/bip39": "^2.4.0",
-    "@scure/btc-signer": "^2.4.1"
-  },
-  "devDependencies": {
-    "@types/node": "^26.6.5",
-    "bip32": "^5.0.1",
-    "bitcoinjs-lib": "^7.0.4",
-    "tiny-secp256k1": "^2.2.4",
-    "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
-  }
+    "name":  "@brbit/wallet-core",
+    "version":  "0.1.0",
+    "private":  true,
+    "type":  "module",
+    "description":  "NÃºcleo puro e testÃ¡vel da carteira BR Bit (Bitcoin, BIP39/BIP32/BIP84, PSBT)",
+    "scripts":  {
+                    "test":  "vitest run",
+                    "typecheck":  "tsc --noEmit",
+                    "build":  "tsc -p tsconfig.build.json"
+                },
+    "dependencies":  {
+                         "@noble/ciphers":  "^2.4.0",
+                         "@noble/curves":  "^2.4.0",
+                         "@noble/hashes":  "^2.4.0",
+                         "@scure/bip32":  "^2.4.0",
+                         "@scure/bip39":  "^2.4.0",
+                         "@scure/btc-signer":  "^2.4.1"
+                     },
+    "devDependencies":  {
+                            "@types/node":  "^26.6.5",
+                            "bip32":  "^5.0.1",
+                            "bitcoinjs-lib":  "^7.0.4",
+                            "tiny-secp256k1":  "^2.2.4",
+                            "typescript":  "^7.0.2",
+                            "vitest":  "^5.0.4"
+                        },
+    "main":  "dist/index.js",
+    "types":  "dist/index.d.ts"
 }

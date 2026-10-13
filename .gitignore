@@ -10,7 +10,7 @@
 *mnemonic*
 *.wallet
 
-# --- Binários de terceiros e artefatos de análise ---
+# --- BinÃ¡rios de terceiros e artefatos de anÃ¡lise ---
 *.apk
 *.aab
 *.hbc
@@ -18,10 +18,10 @@
 apk-*/
 decomp/
 
-# --- Clone do repositório antigo (tem o próprio .git) ---
+# --- Clone do repositÃ³rio antigo (tem o prÃ³prio .git) ---
 repo/
 
-# --- Dependências e builds ---
+# --- DependÃªncias e builds ---
 node_modules/
 android/build/
 android/app/build/
@@ -35,3 +35,10 @@ web-build/
 .DS_Store
 Thumbs.db
 *.log
+
+# Configuracao de agente que vem nos templates (nao faz parte do app)
+app/.claude/
+app/AGENTS.md
+app/android/
+app/ios/
+wallet-core/dist/
