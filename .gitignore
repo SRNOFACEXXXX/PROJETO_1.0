@@ -1,0 +1,37 @@
+# --- Segredos: NUNCA versionar ---
+.env
+.env.*
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+*seed*
+*mnemonic*
+*.wallet
+
+# --- Binários de terceiros e artefatos de análise ---
+*.apk
+*.aab
+*.hbc
+*.bundle
+apk-*/
+decomp/
+
+# --- Clone do repositório antigo (tem o próprio .git) ---
+repo/
+
+# --- Dependências e builds ---
+node_modules/
+android/build/
+android/app/build/
+android/.gradle/
+android/.cxx/
+.expo/
+dist/
+web-build/
+
+# --- Sistema ---
+.DS_Store
+Thumbs.db
+*.log
