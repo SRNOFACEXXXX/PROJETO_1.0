@@ -61,9 +61,13 @@ describe('MempoolExplorer', () => {
   it('propaga erro HTTP e falha de rede com mensagem segura', async () => {
     const http500 = new MempoolExplorer('https://x/api', fakeFetch({ '/v1/fees/recommended': { status: 500, body: 'boom' } }));
     await expect(http500.getFees()).rejects.toThrow('HTTP 500');
-    const offline = new MempoolExplorer('https://x/api', async () => {
-      throw new Error('segredo interno ECONNREFUSED 10.0.0.1');
-    });
+    const offline = new MempoolExplorer(
+      'https://x/api',
+      async () => {
+        throw new Error('segredo interno ECONNREFUSED 10.0.0.1');
+      },
+      { sleep: async () => undefined, minGapMs: 0 },
+    );
     await expect(offline.getFees()).rejects.toThrow('Falha de rede');
     await expect(offline.getFees()).rejects.not.toThrow('10.0.0.1');
   });

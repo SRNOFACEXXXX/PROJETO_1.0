@@ -44,3 +44,5 @@ app/ios/
 wallet-core/dist/
 
 .claude/
+
+qa/out/

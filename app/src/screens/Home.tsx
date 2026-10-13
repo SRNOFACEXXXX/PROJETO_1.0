@@ -1,44 +1,151 @@
-import { MempoolExplorer, NETWORKS, syncWallet, type WalletState } from '@brbit/wallet-core';
+import {
+  ExplorerError,
+  GAP,
+  MempoolExplorer,
+  RateLimitedError,
+  syncWallet,
+  type DerivedAddress,
+  type WalletState,
+} from '@brbit/wallet-core';
 import * as Clipboard from 'expo-clipboard';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { formatBtc } from '../format';
 import type { Nav } from '../nav';
-import { currentKeys, lockWallet } from '../session';
+import { currentKeys, isFreshWallet, lockWallet, markSynced } from '../session';
+import { loadCache, saveCache, type WalletCache } from '../storage';
 import { colors, glow } from '../theme';
 import { Banner, Body, Card, Mono, NeonButton, Screen, Title } from '../ui';
 
-export function useWallet() {
-  const [state, setState] = useState<WalletState | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+export type SyncStatus = 'loading' | 'ok' | 'retrying' | 'failed';
 
-  const refresh = useCallback(async () => {
-    const keys = currentKeys();
-    if (!keys) return;
-    setLoading(true);
+/** Tentativas automáticas antes de entregar o controle ao usuário. */
+const MAX_AUTO_RETRIES = 6;
+/** Espera entre tentativas automáticas (s): 5, 10, 20, 40, 60, 60. */
+const retryDelaySec = (attempt: number) => Math.min(60, 5 * 2 ** attempt);
+
+export function friendlyError(e: unknown): string {
+  if (e instanceof RateLimitedError) return 'O servidor de blockchain está ocupado (limite de requisições).';
+  if (e instanceof ExplorerError) return e.message;
+  return 'Não foi possível sincronizar agora.';
+}
+
+/**
+ * Estado da carteira com a rede. Regras:
+ *  1. O endereço de recebimento é SEMPRE calculado no aparelho: aparece mesmo sem rede.
+ *  2. Falha de rede vira nova tentativa automática, com contagem regressiva visível.
+ *  3. O último saldo conhecido (cache) é mostrado, marcado como desatualizado.
+ *  4. Varredura mínima: carteira nova 3 endereços, já sincronizada 5, importada 20.
+ */
+export function useWallet() {
+  const keys = currentKeys();
+  const [state, setState] = useState<WalletState | null>(null);
+  const [cache, setCache] = useState<WalletCache | null>(null);
+  const [status, setStatus] = useState<SyncStatus>('loading');
+  const [error, setError] = useState<string | null>(null);
+  const [retryIn, setRetryIn] = useState(0);
+  const attempt = useRef(0);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const alive = useRef(true);
+  const running = useRef(false);
+
+  const stopTimer = () => {
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+  };
+
+  const run = useCallback(async () => {
+    if (!keys || running.current) return;
+    running.current = true;
+    stopTimer();
+    setStatus('loading');
     setError(null);
+    const net = keys.network.name;
     try {
+      const cached = await loadCache(net);
+      if (alive.current) setCache(cached);
+      const gapLimit = isFreshWallet() ? GAP.fresh : cached ? GAP.refresh : GAP.restore;
       const explorer = new MempoolExplorer(keys.network.explorerApi, fetch as never);
-      setState(await syncWallet(keys, explorer));
+      const s = await syncWallet(keys, explorer, { gapLimit });
+      if (!alive.current) return;
+      const fresh: WalletCache = {
+        confirmed: s.confirmedSats.toString(),
+        pending: s.pendingSats.toString(),
+        receiveIndex: s.nextReceive.index,
+        changeIndex: s.nextChange.index,
+        at: Date.now(),
+      };
+      await saveCache(net, fresh).catch(() => undefined);
+      markSynced();
+      attempt.current = 0;
+      setState(s);
+      setCache(fresh);
+      setStatus('ok');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Falha ao sincronizar.');
+      if (!alive.current) return;
+      setError(friendlyError(e));
+      if (attempt.current >= MAX_AUTO_RETRIES) {
+        setStatus('failed');
+      } else {
+        const wait = retryDelaySec(attempt.current++);
+        setStatus('retrying');
+        setRetryIn(wait);
+        let left = wait;
+        timer.current = setInterval(() => {
+          left -= 1;
+          if (left <= 0) {
+            stopTimer();
+            running.current = false;
+            void run();
+          } else if (alive.current) setRetryIn(left);
+        }, 1000);
+      }
     } finally {
-      setLoading(false);
+      running.current = false;
     }
-  }, []);
+  }, [keys]);
+
+  /** "Tentar agora": zera a contagem e tenta já. */
+  const refresh = useCallback(() => {
+    stopTimer();
+    attempt.current = 0;
+    running.current = false;
+    void run();
+  }, [run]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    alive.current = true;
+    void run();
+    return () => {
+      alive.current = false;
+      stopTimer();
+    };
+  }, [run]);
 
-  return { state, error, loading, refresh };
+  // Endereço calculado localmente: não depende da rede.
+  const local: DerivedAddress | null = keys ? keys.addressAt(0, state?.nextReceive.index ?? cache?.receiveIndex ?? 0) : null;
+  const address = state?.nextReceive ?? local;
+  const confirmed = state ? state.confirmedSats : cache ? BigInt(cache.confirmed) : null;
+  const pending = state ? state.pendingSats : cache ? BigInt(cache.pending) : 0n;
+
+  return { state, address, confirmed, pending, stale: status !== 'ok', status, error, retryIn, refresh };
+}
+
+export function SyncBanner({ status, error, retryIn }: { status: SyncStatus; error: string | null; retryIn: number }) {
+  if (status === 'ok' || (status === 'loading' && !error)) return null;
+  if (status === 'retrying') {
+    return <Banner kind="warn">{error} Nova tentativa em {retryIn}s. Seu endereço e seus fundos continuam seguros.</Banner>;
+  }
+  if (status === 'failed') {
+    return <Banner kind="danger">{error} Toque em "Tentar agora" quando a conexão voltar.</Banner>;
+  }
+  return null;
 }
 
 export function Home({ nav }: { nav: Nav }) {
   const keys = currentKeys();
-  const { state, error, loading, refresh } = useWallet();
+  const w = useWallet();
   const net = keys?.network.name ?? 'testnet';
   const unit = net === 'testnet' ? 'tBTC' : 'BTC';
 
@@ -62,18 +169,18 @@ export function Home({ nav }: { nav: Nav }) {
       </View>
 
       <Card accent={colors.cyan} style={{ alignItems: 'center', paddingVertical: 28 }}>
-        <Body muted>Saldo disponível</Body>
+        <Body muted>{w.stale && w.confirmed !== null ? 'Último saldo conhecido' : 'Saldo disponível'}</Body>
         <Text
           testID="balance"
-          style={{ color: colors.text, fontSize: 36, fontWeight: '900', ...glow(colors.cyan, 0.3) }}
+          style={{ color: w.stale ? colors.muted : colors.text, fontSize: 36, fontWeight: '900', ...glow(colors.cyan, 0.3) }}
           adjustsFontSizeToFit
           numberOfLines={1}
         >
-          {state ? formatBtc(state.confirmedSats) : loading ? '…' : '—'} <Text style={{ fontSize: 18, color: colors.cyan }}>{unit}</Text>
+          {w.confirmed !== null ? formatBtc(w.confirmed) : w.status === 'loading' ? '…' : '—'}{' '}
+          <Text style={{ fontSize: 18, color: colors.cyan }}>{unit}</Text>
         </Text>
-        {state && state.pendingSats > 0n ? (
-          <Body style={{ color: colors.warn, fontSize: 13 }}>+ {formatBtc(state.pendingSats)} pendente</Body>
-        ) : null}
+        {w.pending > 0n ? <Body style={{ color: colors.warn, fontSize: 13 }}>+ {formatBtc(w.pending)} pendente</Body> : null}
+        {w.status === 'loading' ? <Body muted style={{ fontSize: 12 }}>Sincronizando…</Body> : null}
       </Card>
 
       <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -85,14 +192,23 @@ export function Home({ nav }: { nav: Nav }) {
         </View>
       </View>
 
-      {error ? <Banner kind="danger">{error}</Banner> : null}
-      <NeonButton testID="btn-refresh" title="Atualizar" variant="ghost" loading={loading} onPress={refresh} />
+      <SyncBanner status={w.status} error={w.error} retryIn={w.retryIn} />
+      <NeonButton
+        testID="btn-refresh"
+        title={w.status === 'ok' ? 'Atualizar' : 'Tentar agora'}
+        variant="ghost"
+        loading={w.status === 'loading'}
+        onPress={w.refresh}
+      />
 
-      {state ? (
+      {w.address ? (
         <Card>
-          <Body muted>Próximo endereço de recebimento</Body>
-          <Mono color={colors.lime} size={13}>{state.nextReceive.address}</Mono>
-          <Body muted style={{ fontSize: 12 }}>{state.nextReceive.path} · {state.utxos.length} saída(s)</Body>
+          <Body muted>Endereço de recebimento</Body>
+          <Mono color={colors.lime} size={13}>{w.address.address}</Mono>
+          <Body muted style={{ fontSize: 12 }}>
+            {w.address.path}
+            {w.state ? ` · ${w.state.utxos.length} saída(s)` : ' · calculado no aparelho'}
+          </Body>
         </Card>
       ) : null}
 
@@ -117,9 +233,9 @@ export function Home({ nav }: { nav: Nav }) {
 }
 
 export function Receive({ nav }: { nav: Nav }) {
-  const { state, error, loading } = useWallet();
+  const w = useWallet();
   const [copied, setCopied] = useState(false);
-  const address = state?.nextReceive.address;
+  const address = w.address?.address;
   return (
     <Screen>
       <Title>Receber</Title>
@@ -133,10 +249,15 @@ export function Receive({ nav }: { nav: Nav }) {
             <Mono color={colors.lime} size={13}>{address}</Mono>
           </>
         ) : (
-          <Body muted>{loading ? 'Gerando endereço…' : 'Endereço indisponível.'}</Body>
+          <Body muted>Carteira bloqueada.</Body>
         )}
       </Card>
-      {error ? <Banner kind="danger">{error}</Banner> : null}
+      {w.stale && address ? (
+        <Banner kind="info">
+          Endereço calculado no aparelho. A rede ainda não confirmou se ele já foi usado, mas ele é válido para receber.
+        </Banner>
+      ) : null}
+      <SyncBanner status={w.status} error={w.error} retryIn={w.retryIn} />
       <NeonButton
         testID="btn-copy"
         title={copied ? '✓ Copiado' : 'Copiar endereço'}

@@ -122,13 +122,13 @@ export function ConfirmSeed({ nav, mnemonic }: { nav: Nav; mnemonic: string }) {
           placeholder="palavra"
         />
       ))}
-      <NeonButton testID="btn-confirm" title="Confirmar" disabled={!ok} onPress={() => nav.go({ name: 'setpin', mnemonic })} />
+      <NeonButton testID="btn-confirm" title="Confirmar" disabled={!ok} onPress={() => nav.go({ name: 'setpin', mnemonic, isNew: true })} />
       <NeonButton testID="btn-confirm-back" title="Voltar" variant="ghost" onPress={() => nav.go({ name: 'create', mnemonic })} />
     </Screen>
   );
 }
 
-export function SetPin({ nav, mnemonic }: { nav: Nav; mnemonic: string }) {
+export function SetPin({ nav, mnemonic, isNew }: { nav: Nav; mnemonic: string; isNew: boolean }) {
   useSecureScreen();
   const [first, setFirst] = useState<string | null>(null);
   const [pin, setPin] = useState('');
@@ -158,7 +158,7 @@ export function SetPin({ nav, mnemonic }: { nav: Nav; mnemonic: string }) {
     }
     setBusy(true);
     try {
-      await createWallet(mnemonic, v, await loadNetwork());
+      await createWallet(mnemonic, v, await loadNetwork(), isNew);
       nav.go({ name: 'home' });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Falha ao proteger a carteira.');
@@ -193,7 +193,7 @@ export function ImportWallet({ nav }: { nav: Nav }) {
       setError('Frase inválida. Confira as palavras, a ordem e o número (12 ou 24).');
       return;
     }
-    nav.go({ name: 'setpin', mnemonic: normalizeMnemonic(text) });
+    nav.go({ name: 'setpin', mnemonic: normalizeMnemonic(text), isNew: false });
   }
   return (
     <Screen>

@@ -15,7 +15,7 @@ import type { Nav } from '../nav';
 import { currentKeys, verifyPin } from '../session';
 import { colors } from '../theme';
 import { Banner, Body, Card, Field, Mono, NeonButton, PIN_LENGTH, PinPad, Screen, Title } from '../ui';
-import { useWallet } from './Home';
+import { SyncBanner, useWallet } from './Home';
 
 type Step = 'form' | 'review' | 'pin' | 'done';
 type Speed = 'economy' | 'hour' | 'halfHour';
@@ -27,7 +27,9 @@ const SPEEDS: { key: Speed; label: string }[] = [
 
 export function Send({ nav }: { nav: Nav }) {
   const keys = currentKeys();
-  const { state, loading } = useWallet();
+  const wallet = useWallet();
+  const state = wallet.state;
+  const loading = wallet.status === 'loading';
   const [step, setStep] = useState<Step>('form');
   const [to, setTo] = useState('');
   const [amount, setAmount] = useState('');
@@ -202,6 +204,13 @@ export function Send({ nav }: { nav: Nav }) {
         </View>
         <Body muted style={{ fontSize: 12 }}>{fees ? `${feeRate} sat/vB` : 'Carregando taxas…'}</Body>
       </View>
+      {!state && !loading ? (
+        <>
+          <Banner kind="warn">Sem resposta do servidor: não dá para enviar agora, porque o app precisa conferir seus saldos na rede.</Banner>
+          <SyncBanner status={wallet.status} error={wallet.error} retryIn={wallet.retryIn} />
+          <NeonButton testID="btn-send-retry" title="Tentar agora" variant="ghost" onPress={wallet.refresh} />
+        </>
+      ) : null}
       {error ? <Banner kind="danger">{error}</Banner> : null}
       <NeonButton testID="btn-review" title="Revisar" disabled={!state || !fees || !to || !amount} onPress={review} />
       <NeonButton title="Voltar" variant="ghost" onPress={() => nav.go({ name: 'home' })} />

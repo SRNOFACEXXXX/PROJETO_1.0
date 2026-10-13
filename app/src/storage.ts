@@ -46,7 +46,45 @@ export async function saveNetwork(n: NetworkName): Promise<void> {
   await SecureStore.setItemAsync(K.network, n);
 }
 
-/** Apaga TUDO: cofre, contagem de PIN e preferências. */
+/**
+ * Último estado conhecido da carteira, só para mostrar algo quando a rede falha.
+ * Contém apenas números (saldo e índices); nunca chaves, palavras ou endereços.
+ * O saldo em cache NÃO é usado para enviar: o envio sempre exige a rede.
+ */
+export interface WalletCache {
+  confirmed: string;
+  pending: string;
+  receiveIndex: number;
+  changeIndex: number;
+  at: number;
+}
+
+const cacheKey = (n: NetworkName) => `brbit.cache.${n}.v1`;
+
+export async function loadCache(n: NetworkName): Promise<WalletCache | null> {
+  const raw = await SecureStore.getItemAsync(cacheKey(n));
+  if (!raw) return null;
+  try {
+    const c = JSON.parse(raw) as Partial<WalletCache>;
+    if (
+      typeof c.confirmed === 'string' && /^\d+$/.test(c.confirmed) &&
+      typeof c.pending === 'string' && /^\d+$/.test(c.pending) &&
+      Number.isInteger(c.receiveIndex) && Number.isInteger(c.changeIndex) && Number.isFinite(c.at)
+    ) {
+      return c as WalletCache;
+    }
+  } catch {
+    // cache corrompido: ignora (é só conveniência)
+  }
+  return null;
+}
+
+export async function saveCache(n: NetworkName, c: WalletCache): Promise<void> {
+  await SecureStore.setItemAsync(cacheKey(n), JSON.stringify(c));
+}
+
+/** Apaga TUDO: cofre, contagem de PIN, preferências e caches. */
 export async function wipeAll(): Promise<void> {
-  await Promise.all(Object.values(K).map((k) => SecureStore.deleteItemAsync(k)));
+  const keys: string[] = [...Object.values(K), cacheKey('mainnet'), cacheKey('testnet')];
+  await Promise.all(keys.map((k) => SecureStore.deleteItemAsync(k)));
 }

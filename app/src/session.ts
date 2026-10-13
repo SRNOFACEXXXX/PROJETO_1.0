@@ -39,8 +39,16 @@ export function lockWallet(): void {
   keys = null;
 }
 
-/** Cria o cofre com o PIN e deixa a carteira desbloqueada. */
-export async function createWallet(mnemonic: string, pin: string, network: NetworkName): Promise<void> {
+/** Verdadeiro logo após criar uma carteira NOVA aqui: ainda não pode haver histórico na rede. */
+let freshWallet = false;
+export const isFreshWallet = () => freshWallet;
+export const markSynced = () => {
+  freshWallet = false;
+};
+
+/** Cria o cofre com o PIN e deixa a carteira desbloqueada. `isNew`: frase gerada agora (não importada). */
+export async function createWallet(mnemonic: string, pin: string, network: NetworkName, isNew = false): Promise<void> {
+  freshWallet = isNew;
   const a = assessPin(pin);
   if (!a.ok) throw new Error(a.reasons[0]);
   await paint();

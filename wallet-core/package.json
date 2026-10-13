@@ -3,11 +3,12 @@
     "version":  "0.1.0",
     "private":  true,
     "type":  "module",
-    "description":  "NÃºcleo puro e testÃ¡vel da carteira BR Bit (Bitcoin, BIP39/BIP32/BIP84, PSBT)",
+    "description":  "NÃƒÂºcleo puro e testÃƒÂ¡vel da carteira BR Bit (Bitcoin, BIP39/BIP32/BIP84, PSBT)",
     "scripts":  {
                     "test":  "vitest run",
                     "typecheck":  "tsc --noEmit",
-                    "build":  "tsc -p tsconfig.build.json"
+                    "build":  "tsc -p tsconfig.build.json",
+                    "test:live":  "vitest run --config vitest.live.config.ts"
                 },
     "dependencies":  {
                          "@noble/ciphers":  "^2.4.0",

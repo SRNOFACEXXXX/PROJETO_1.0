@@ -34,22 +34,70 @@ export class ExplorerError extends Error {
   }
 }
 
-type FetchLike = (url: string, init?: { method?: string; body?: string; headers?: Record<string, string>; signal?: AbortSignal }) => Promise<{
+/** O servidor recusou por excesso de requisições (HTTP 429) mesmo após tentar de novo. */
+export class RateLimitedError extends ExplorerError {
+  constructor(readonly retryAfterMs: number) {
+    super('O servidor de blockchain está ocupado (limite de requisições).', 429);
+    this.name = 'RateLimitedError';
+  }
+}
+
+type FetchLike = (
+  url: string,
+  init?: { method?: string; body?: string; headers?: Record<string, string>; signal?: AbortSignal },
+) => Promise<{
   ok: boolean;
   status: number;
   text(): Promise<string>;
+  headers?: { get(name: string): string | null };
 }>;
+
+export interface ExplorerOptions {
+  timeoutMs?: number;
+  /** Tentativas por requisição (inclui a primeira). */
+  maxAttempts?: number;
+  /** Requisições simultâneas, para não estourar o limite do servidor público. */
+  maxConcurrent?: number;
+  /** Intervalo mínimo entre o início de duas requisições. */
+  minGapMs?: number;
+  /** Primeira espera do recuo exponencial. */
+  baseDelayMs?: number;
+  /** Teto da espera, inclusive a pedida por Retry-After. */
+  maxDelayMs?: number;
+  /** Injetáveis para teste. */
+  sleep?: (ms: number) => Promise<void>;
+  random?: () => number;
+}
 
 const ADDRESS_RE = /^[a-zA-Z0-9]{14,90}$/;
 const TXID_RE = /^[0-9a-f]{64}$/;
 const HEX_RE = /^(?:[0-9a-f]{2})+$/i;
+/** Respostas que valem uma nova tentativa. 4xx (exceto 429) são erro definitivo. */
+const RETRYABLE = new Set([429, 502, 503, 504]);
 
 export class MempoolExplorer implements Explorer {
+  private readonly o: Required<ExplorerOptions>;
+  private inFlight = 0;
+  private waiters: Array<() => void> = [];
+  private nextStart = 0;
+
   constructor(
     private readonly baseUrl: string,
     private readonly fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
-    private readonly timeoutMs = 15_000,
-  ) {}
+    options: ExplorerOptions | number = {},
+  ) {
+    const opts = typeof options === 'number' ? { timeoutMs: options } : options;
+    this.o = {
+      timeoutMs: opts.timeoutMs ?? 15_000,
+      maxAttempts: opts.maxAttempts ?? 5,
+      maxConcurrent: opts.maxConcurrent ?? 2,
+      minGapMs: opts.minGapMs ?? 120,
+      baseDelayMs: opts.baseDelayMs ?? 1_000,
+      maxDelayMs: opts.maxDelayMs ?? 20_000,
+      sleep: opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
+      random: opts.random ?? Math.random,
+    };
+  }
 
   async getAddressInfo(address: string): Promise<AddressInfo> {
     assertAddress(address);
@@ -90,7 +138,9 @@ export class MempoolExplorer implements Explorer {
 
   async broadcast(hex: string): Promise<string> {
     if (!HEX_RE.test(hex)) throw new ExplorerError('Transação em formato inválido.');
-    const res = await this.request('/tx', { method: 'POST', body: hex, headers: { 'Content-Type': 'text/plain' } });
+    // Broadcast NÃO é repetido às cegas: um erro de rede no meio pode significar que o servidor
+    // já recebeu a transação. Uma só tentativa; quem chama decide o que fazer.
+    const res = await this.request('/tx', { method: 'POST', body: hex, headers: { 'Content-Type': 'text/plain' } }, 1);
     const txid = (await res.text()).trim();
     if (!TXID_RE.test(txid)) throw new ExplorerError('Resposta de broadcast inválida.', res.status);
     return txid;
@@ -105,19 +155,58 @@ export class MempoolExplorer implements Explorer {
     }
   }
 
-  private async request(path: string, init: { method?: string; body?: string; headers?: Record<string, string> } = {}) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), this.timeoutMs);
-    try {
-      const res = await this.fetchImpl(this.baseUrl + path, { ...init, signal: ctrl.signal });
-      if (!res.ok) throw new ExplorerError(`Explorador respondeu com erro HTTP ${res.status}.`, res.status);
-      return res;
-    } catch (e) {
-      if (e instanceof ExplorerError) throw e;
-      throw new ExplorerError('Falha de rede ao consultar o explorador.');
-    } finally {
-      clearTimeout(timer);
+  private async acquire(): Promise<void> {
+    if (this.inFlight >= this.o.maxConcurrent) await new Promise<void>((r) => this.waiters.push(r));
+    this.inFlight++;
+    const now = Date.now();
+    const wait = Math.max(0, this.nextStart - now);
+    this.nextStart = Math.max(now, this.nextStart) + this.o.minGapMs;
+    if (wait > 0) await this.o.sleep(wait);
+  }
+
+  private release(): void {
+    this.inFlight--;
+    this.waiters.shift()?.();
+  }
+
+  private delayFor(attempt: number, retryAfter: string | null | undefined): number {
+    const asSeconds = retryAfter ? Number(retryAfter) : NaN;
+    if (Number.isFinite(asSeconds) && asSeconds >= 0) return Math.min(asSeconds * 1000, this.o.maxDelayMs);
+    const exp = this.o.baseDelayMs * 2 ** attempt;
+    return Math.min(exp + this.o.random() * this.o.baseDelayMs, this.o.maxDelayMs);
+  }
+
+  private async request(
+    path: string,
+    init: { method?: string; body?: string; headers?: Record<string, string> } = {},
+    maxAttempts = this.o.maxAttempts,
+  ) {
+    let lastDelay = 0;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const last = attempt === maxAttempts - 1;
+      await this.acquire();
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), this.o.timeoutMs);
+      try {
+        const res = await this.fetchImpl(this.baseUrl + path, { ...init, signal: ctrl.signal });
+        if (res.ok) return res;
+        if (!RETRYABLE.has(res.status)) throw new ExplorerError(`Explorador respondeu com erro HTTP ${res.status}.`, res.status);
+        lastDelay = this.delayFor(attempt, res.headers?.get('retry-after'));
+        if (last) {
+          if (res.status === 429) throw new RateLimitedError(lastDelay);
+          throw new ExplorerError(`Explorador indisponível (HTTP ${res.status}).`, res.status);
+        }
+      } catch (e) {
+        if (e instanceof ExplorerError) throw e;
+        lastDelay = this.delayFor(attempt, null);
+        if (last) throw new ExplorerError('Falha de rede ao consultar o explorador.');
+      } finally {
+        clearTimeout(timer);
+        this.release();
+      }
+      await this.o.sleep(lastDelay);
     }
+    throw new ExplorerError('Falha ao consultar o explorador.');
   }
 }
 

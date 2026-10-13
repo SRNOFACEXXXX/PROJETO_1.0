@@ -54,7 +54,7 @@ export default function App() {
         ) : r.name === 'confirm' ? (
           <ConfirmSeed nav={nav} mnemonic={r.mnemonic} />
         ) : r.name === 'setpin' ? (
-          <SetPin nav={nav} mnemonic={r.mnemonic} />
+          <SetPin nav={nav} mnemonic={r.mnemonic} isNew={r.isNew} />
         ) : r.name === 'import' ? (
           <ImportWallet nav={nav} />
         ) : r.name === 'lock' ? (

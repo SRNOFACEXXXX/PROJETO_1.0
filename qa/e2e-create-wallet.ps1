@@ -150,7 +150,7 @@ Step 'PINs diferentes não passam' {
 Step 'PIN forte cria a carteira e abre a Home' {
     Tap-Pin '482916'; Assert-Text 'Repita o PIN' 'pede repetição'
     Tap-Pin '482916'
-    if (-not (Wait-Text 'Saldo disponível' 90)) { throw 'Home não abriu' }
+    Wait-Home 90 | Out-Null
     Assert-Text 'TESTNET' 'rede testnet ativa'
     Assert-Text 'Receber' 'botão Receber'
 }
