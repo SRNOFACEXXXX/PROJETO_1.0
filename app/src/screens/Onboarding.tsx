@@ -39,9 +39,9 @@ export function Welcome({ nav }: { nav: Nav }) {
   );
 }
 
-export function CreateSeed({ nav }: { nav: Nav }) {
+export function CreateSeed({ nav, initial }: { nav: Nav; initial?: string }) {
   useSecureScreen();
-  const mnemonic = useMemo(() => newMnemonic(128), []);
+  const mnemonic = useMemo(() => initial ?? newMnemonic(128), [initial]);
   const [shown, setShown] = useState(false);
   const [saved, setSaved] = useState(false);
   const words = mnemonic.split(' ');
@@ -123,7 +123,7 @@ export function ConfirmSeed({ nav, mnemonic }: { nav: Nav; mnemonic: string }) {
         />
       ))}
       <NeonButton testID="btn-confirm" title="Confirmar" disabled={!ok} onPress={() => nav.go({ name: 'setpin', mnemonic })} />
-      <NeonButton title="Voltar" variant="ghost" onPress={() => nav.go({ name: 'create' })} />
+      <NeonButton testID="btn-confirm-back" title="Voltar" variant="ghost" onPress={() => nav.go({ name: 'create', mnemonic })} />
     </Screen>
   );
 }

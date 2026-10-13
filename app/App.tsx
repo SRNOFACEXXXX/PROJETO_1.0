@@ -50,7 +50,7 @@ export default function App() {
         {r === null ? null : r.name === 'welcome' ? (
           <Welcome nav={nav} />
         ) : r.name === 'create' ? (
-          <CreateSeed nav={nav} />
+          <CreateSeed nav={nav} initial={r.mnemonic} />
         ) : r.name === 'confirm' ? (
           <ConfirmSeed nav={nav} mnemonic={r.mnemonic} />
         ) : r.name === 'setpin' ? (
