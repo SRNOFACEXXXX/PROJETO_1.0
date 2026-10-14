@@ -1,4 +1,8 @@
+import { XP_TABLE, dayKey, nextStreak } from '@brbit/wallet-core';
 import * as SecureStore from 'expo-secure-store';
+
+// As regras (níveis, tabela de XP, sequência) são puras e testadas em wallet-core/levels.
+export { LEVELS, XP_TABLE, levelFor } from '@brbit/wallet-core';
 
 /**
  * Progresso do usuário (nível, XP e sequência de dias). Tudo local, só números e datas:
@@ -13,45 +17,8 @@ export interface Progress {
   lastDay: string | null;
 }
 
-export const LEVELS = [
-  { level: 1, name: 'Guardião', from: 0 },
-  { level: 2, name: 'Explorador', from: 300 },
-  { level: 3, name: 'Navegador', from: 800 },
-  { level: 4, name: 'Estrategista', from: 1500 },
-  { level: 5, name: 'Veterano', from: 2500 },
-  { level: 6, name: 'Mestre', from: 4000 },
-] as const;
-
-/** Pontos de cada conquista. */
-export const XP_TABLE: Record<string, { xp: number; title: string }> = {
-  backup: { xp: 100, title: 'Backup confirmado' },
-  pin: { xp: 50, title: 'PIN criado' },
-  biometric: { xp: 50, title: 'Biometria ativada' },
-  firstReceive: { xp: 50, title: 'Primeiro endereço copiado' },
-  firstSend: { xp: 100, title: 'Primeiro envio' },
-  viewedKey: { xp: 30, title: 'Chave de segurança revista' },
-};
-
 const KEY = 'brbit.progress.v1';
 const EMPTY: Progress = { xp: 0, done: [], streak: 0, lastDay: null };
-
-export function levelFor(xp: number) {
-  let cur: (typeof LEVELS)[number] = LEVELS[0];
-  for (const l of LEVELS) if (xp >= l.from) cur = l;
-  const next = LEVELS.find((l) => l.from > xp) ?? null;
-  return { ...cur, next, toNext: next ? next.from - xp : 0, into: xp - cur.from, span: next ? next.from - cur.from : 1 };
-}
-
-/** AAAA-MM-DD no fuso local. */
-export function dayKey(d = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-
-function daysBetween(a: string, b: string): number {
-  const t = (s: string) => Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10)));
-  return Math.round((t(b) - t(a)) / 86_400_000);
-}
 
 export async function loadProgress(): Promise<Progress> {
   const raw = await SecureStore.getItemAsync(KEY);
@@ -86,9 +53,7 @@ export async function touchStreak(now = new Date()): Promise<Progress> {
   const p = await loadProgress();
   const today = dayKey(now);
   if (p.lastDay === today) return p;
-  const gap = p.lastDay ? daysBetween(p.lastDay, today) : null;
-  const streak = gap === 1 ? p.streak + 1 : 1;
-  const next = { ...p, streak, lastDay: today };
+  const next = { ...p, streak: nextStreak(p.streak, p.lastDay, today), lastDay: today };
   await save(next);
   return next;
 }

@@ -7,8 +7,20 @@ $script:Adb = 'C:\android-lite\sdk\platform-tools\adb.exe'
 $script:Pkg = 'com.brbit.hotwallet'   # app NOVO. Nunca com.brbit.wallet (app antigo).
 
 function Get-Ui {
-    & $script:Adb shell uiautomator dump /sdcard/ui.xml 2>$null | Out-Null
-    [xml](& $script:Adb exec-out cat /sdcard/ui.xml 2>$null)
+    # Apaga o arquivo antes: se o dump falhar (ex.: "null root node" enquanto o app abre), nunca lemos
+    # a tela ANTIGA como se fosse a atual. Confere que o dump aconteceu e tenta de novo.
+    # O erro do uiautomator sai em stderr; com ErrorActionPreference='Stop' (usado pelos testes) isso viraria
+    # exceção e pularia as tentativas. Aqui dentro, stderr é só texto para conferir.
+    $ErrorActionPreference = 'Continue'
+    for ($i = 0; $i -lt 8; $i++) {
+        $o = (& $script:Adb shell 'rm -f /sdcard/ui.xml; uiautomator dump /sdcard/ui.xml' 2>&1 | ForEach-Object { "$_" }) -join ' '
+        if ($o -match 'dumped') {
+            $xml = & $script:Adb exec-out cat /sdcard/ui.xml 2>$null
+            try { $doc = [xml]($xml -join "`n"); if ($doc.hierarchy) { return $doc } } catch { }
+        }
+        Start-Sleep -Milliseconds 700
+    }
+    throw 'o uiautomator não devolveu a tela (8 tentativas)'
 }
 
 function Find-Node([xml]$ui, [string]$needle) {

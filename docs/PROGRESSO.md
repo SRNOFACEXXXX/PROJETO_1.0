@@ -6,7 +6,7 @@ Registro vivo da validação. Cada item só vira ✅ depois de rodar o teste e v
 
 | Item | Teste | Resultado |
 |---|---|---|
-| BIP39, BIP84, cofre, PIN, transação, política, explorador, sync, mercado, gráficos, atividade | 166 testes offline (`npm test`) + verificação cruzada com bitcoinjs-lib | ✅ 166/166 |
+| BIP39, BIP84, cofre, PIN, transação, política, explorador, sync, mercado, gráficos, atividade | 185 testes offline (`npm test`) + verificação cruzada com bitcoinjs-lib | ✅ 185/185 |
 | Endereços e preços contra fontes reais | 23 testes ao vivo (`npm run test:live`): scanner mempool.space (testnet4 + mainnet) e Binance x CoinGecko | ✅ 23/23 |
 
 ## App (`app`), visual do canvas de design (preto + verde neon)

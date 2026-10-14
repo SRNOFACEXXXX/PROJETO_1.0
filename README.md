@@ -50,7 +50,7 @@ Bibliotecas de criptografia: `@scure/*` e `@noble/*` (JavaScript puro, auditadas
 
 ## Como foi testado
 
-**166 testes offline** (`wallet-core`, `npm test`) incluindo vetores oficiais dos BIPs e **verificação cruzada** com
+**185 testes offline** (`wallet-core`, `npm test`) incluindo vetores oficiais dos BIPs e **verificação cruzada** com
 `bitcoinjs-lib`; **23 testes ao vivo** (`npm run test:live`) contra a blockchain real (testnet4 e mainnet, só gerando
 endereços descartáveis) e contra duas fontes de preço independentes.
 
