@@ -22,11 +22,11 @@ Registro vivo da validação. Cada item só vira ✅ depois de rodar o teste e v
 | 5 | Navegação, botão Voltar do Android, Mercado (comparativo, lista, detalhe, velas, mira), Atividade, Ver frase com PIN | `qa/e2e-navigation.ps1` | ✅ 11/11 |
 | 6 | Importar frase: inválida (checksum, palavra fora da lista), 24 palavras, maiúsculas/espaços extras, endereço = derivação independente | `qa/e2e-import.ps1` | ✅ 5/5 |
 | 7 | Enviar: validações, MAX, revisão, "segure para enviar", PIN, **assinatura verificada por outra biblioteca**, troco, taxa, falha de rede sem duplicar | `qa/e2e-send.ps1` + `qa/fake-mempool.mjs` (só testnet) | ✅ 9/9 |
-| 8 | Ajustes: trocar rede (✅ em 3b), ver frase com PIN (✅ em 5), apagar carteira | Robô | ✅ / apagar ⬜ |
+| 8 | Ajustes: trocar rede (✅ em 3b), ver frase com PIN (✅ em 5), **apagar carteira** (cancelar não apaga; confirmar apaga; reabrir sem cofre nem PIN) | `qa/e2e-erase.ps1` | ✅ 5/5 |
 | 9 | Bloqueio automático em segundo plano (< 30 s volta direto; > 30 s volta bloqueada; Receber não expõe o endereço) | `qa/e2e-autolock.ps1` | ✅ 5/5 |
 | 10 | Revisão de segurança (REA + checklist OWASP MASVS), incluindo o **APK release** | REA `inspect-android-package` | ✅ |
 | 10b | APK autônomo arm64 para o celular (JS embutido, assinado) | Gradle `assembleRelease` + REA + `apksigner verify` | ✅ gerado; **ainda não testado em aparelho real** |
-| 11 | Documentação final | README | ⬜ |
+| 11 | Documentação final | README + `docs/` | ✅ |
 
 Desempenho medido no emulador (Hermes, modo desenvolvimento): abrir o cofre **~8 s** depois do
 último dígito (antes ~50 s); criar a carteira ~35 s (inclui o cálculo único da seed).

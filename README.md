@@ -62,10 +62,17 @@ endereços descartáveis) e contra duas fontes de preço independentes.
 | `e2e-address-onchain.ps1` | o endereço mostrado na tela existe e é válido no scanner (testnet4 e mainnet); bate com derivação independente |
 | `e2e-lock-unlock.ps1` | PIN errado, bloqueio que dobra (30→60 s), sobrevive a reabrir o app, trava de desempenho do desbloqueio |
 | `e2e-navigation.ps1` | abas, botão Voltar do Android, Mercado (comparativo, lista, velas, mira), Atividade, ver frase |
+| `e2e-import.ps1` | frase inválida (checksum, palavra fora da lista), 24 palavras, maiúsculas/espaços, endereço = derivação independente |
+| `e2e-autolock.ps1` | bloqueio automático em segundo plano (< 30 s volta direto; > 30 s volta bloqueada) |
+| `e2e-erase.ps1` | apagar a carteira: cancelar não apaga, confirmar apaga, reabrir sem cofre nem PIN |
 | `e2e-send.ps1` | formulário, MAX, "segure para enviar", PIN, **assinatura verificada por outra biblioteca**, troco, taxa, falha de rede sem duplicar |
 
 Bugs reais achados por esses testes (e corrigidos) estão em [`docs/PROGRESSO.md`](docs/PROGRESSO.md): o app preso em
 HTTP 429 na mainnet, o botão Voltar que fechava o app, o desbloqueio de ~50 s, entre outros.
+
+## APK para celular
+
+O release arm64 autônomo (JavaScript embutido, assinado com chave própria) foi conferido com o REA: sem `debuggable`, sem HTTP sem TLS, backup desligado, sem `SYSTEM_ALERT_WINDOW`. Detalhes em [`docs/SEGURANCA.md`](docs/SEGURANCA.md). **Ainda não foi testado em aparelho real.**
 
 ## Como rodar
 
