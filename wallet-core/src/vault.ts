@@ -79,6 +79,42 @@ export function openSecret(sealed: string, pin: string): string {
   }
 }
 
+export interface VaultSecret {
+  mnemonic: string;
+  /** Seed BIP39 de 64 bytes, já derivada: abrir o app não precisa refazer o PBKDF2 de 2.048 voltas. */
+  seed: Uint8Array;
+}
+
+/**
+ * Empacota mnemônico + seed num único texto para ser selado. Guardar a seed junto evita recalcular
+ * o PBKDF2-SHA512 (2.048 voltas) a cada desbloqueio, que levava ~25 s no Hermes. Não reduz a
+ * segurança: a seed é derivável do mnemônico, e ambos ficam dentro do mesmo cofre cifrado.
+ */
+export function packSecret(mnemonic: string, seed: Uint8Array): string {
+  if (seed.length !== 64) throw new RangeError('A seed BIP39 tem 64 bytes.');
+  return JSON.stringify({ v: 2, m: mnemonic, s: bytesToHex(seed) });
+}
+
+/**
+ * Lê o que foi selado. Cofres antigos guardavam só o mnemônico em texto puro: nesse caso a seed
+ * é derivada por `deriveSeed` (só acontece uma vez por cofre antigo, se o chamador regravar).
+ */
+export function unpackSecret(text: string, deriveSeed: (mnemonic: string) => Uint8Array): VaultSecret {
+  if (text.startsWith('{')) {
+    let o: { v?: unknown; m?: unknown; s?: unknown };
+    try {
+      o = JSON.parse(text);
+    } catch {
+      throw new Error('Cofre em formato inválido.');
+    }
+    if (o.v === 2 && typeof o.m === 'string' && typeof o.s === 'string' && /^[0-9a-f]{128}$/.test(o.s)) {
+      return { mnemonic: o.m, seed: hexToBytes(o.s) };
+    }
+    throw new Error('Cofre em formato inválido.');
+  }
+  return { mnemonic: text, seed: deriveSeed(text) };
+}
+
 function parseBlob(sealed: string): VaultBlob {
   let raw: unknown;
   try {

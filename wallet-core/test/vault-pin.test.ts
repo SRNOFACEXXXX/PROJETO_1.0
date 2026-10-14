@@ -7,6 +7,8 @@ import {
   isLocked,
   lockRemainingMs,
   openSecret,
+  packSecret,
+  unpackSecret,
   recordFailure,
   recordSuccess,
   sealSecret,
@@ -47,6 +49,41 @@ describe('cofre criptografado', () => {
     expect(() => openSecret(JSON.stringify(blob), '482916')).toThrow(WrongPinError);
     blob.params.N = 1000; // não é potência de 2
     expect(() => openSecret(JSON.stringify(blob), '482916')).toThrow(WrongPinError);
+  });
+});
+
+describe('empacotamento do segredo (mnemônico + seed)', () => {
+  const seed = Uint8Array.from({ length: 64 }, (_, i) => i);
+  const derive = () => {
+    throw new Error('não deveria derivar: a seed já está no cofre');
+  };
+
+  it('ida e volta sem recalcular a seed', () => {
+    const out = unpackSecret(packSecret(SECRET, seed), derive);
+    expect(out.mnemonic).toBe(SECRET);
+    expect(Array.from(out.seed)).toEqual(Array.from(seed));
+  });
+
+  it('passa pelo cofre cifrado sem perder nada', () => {
+    const sealed = sealSecret(packSecret(SECRET, seed), '482916', FAST);
+    expect(sealed).not.toContain('abandon');
+    const out = unpackSecret(openSecret(sealed, '482916'), derive);
+    expect(out.mnemonic).toBe(SECRET);
+    expect(out.seed).toHaveLength(64);
+  });
+
+  it('cofre antigo (só o mnemônico em texto puro) ainda abre, derivando a seed', () => {
+    const out = unpackSecret(SECRET, () => seed);
+    expect(out.mnemonic).toBe(SECRET);
+    expect(out.seed).toBe(seed);
+  });
+
+  it('recusa seed de tamanho errado ao empacotar e formato quebrado ao abrir', () => {
+    expect(() => packSecret(SECRET, new Uint8Array(32))).toThrow(RangeError);
+    expect(() => unpackSecret('{"v":2,"m":"x","s":"abcd"}', derive)).toThrow('formato inválido');
+    expect(() => unpackSecret('{"v":3,"m":"x"}', derive)).toThrow('formato inválido');
+    expect(() => unpackSecret('{quebrado', derive)).toThrow('formato inválido');
+    expect(() => unpackSecret(`{"v":2,"m":"x","s":"${'g'.repeat(128)}"}`, derive)).toThrow('formato inválido');
   });
 });
 

@@ -12,6 +12,8 @@ export interface WalletState {
   nextChange: DerivedAddress;
   /** Quantas consultas ao explorador a varredura fez (para medir o custo). */
   requests: number;
+  /** Endereços que já têm histórico (base da tela Atividade). */
+  usedAddresses: DerivedAddress[];
 }
 
 export interface SyncOptions {
@@ -42,6 +44,7 @@ export async function syncWallet(keys: HDWalletKeys, explorer: Explorer, opts: S
   const gapLimit = opts.gapLimit ?? GAP.restore;
   const batch = Math.max(1, opts.batch ?? 2);
   const utxos: Utxo[] = [];
+  const usedAddresses: DerivedAddress[] = [];
   const next: Record<Chain, DerivedAddress> = { 0: keys.addressAt(0, 0), 1: keys.addressAt(1, 0) };
   let requests = 0;
 
@@ -63,7 +66,10 @@ export async function syncWallet(keys: HDWalletKeys, explorer: Explorer, opts: S
         }),
       );
       for (const r of results) {
-        if (r.used) lastUsed = Math.max(lastUsed, r.a.index);
+        if (r.used) {
+          lastUsed = Math.max(lastUsed, r.a.index);
+          usedAddresses.push(r.a);
+        }
         for (const u of r.found) {
           utxos.push({ txid: u.txid, vout: u.vout, value: u.value, confirmed: u.confirmed, chain, index: r.a.index });
         }
@@ -80,5 +86,5 @@ export async function syncWallet(keys: HDWalletKeys, explorer: Explorer, opts: S
     if (u.confirmed) confirmedSats += u.value;
     else pendingSats += u.value;
   }
-  return { utxos, confirmedSats, pendingSats, nextReceive: next[0], nextChange: next[1], requests };
+  return { utxos, confirmedSats, pendingSats, nextReceive: next[0], nextChange: next[1], requests, usedAddresses };
 }

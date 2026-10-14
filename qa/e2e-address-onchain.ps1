@@ -78,20 +78,26 @@ Step 'Cria carteira de teste (testnet) e abre a Home' {
     Assert-Text 'TESTNET' 'rede testnet'
 }
 
-Step 'TESTNET: endereço da Home existe e é válido no scanner' {
+Step 'TESTNET: o endereço da tela Receber existe e é válido no scanner' {
+    Tap-Text 'Receber'
     $script:homeAddr = Read-Address 'tb1q'
     Write-Host "  endereço: $($script:homeAddr)"
     Verify-OnChain 'testnet' $script:homeAddr
-}
-
-Step 'TESTNET: a tela Receber mostra o MESMO endereço' {
-    Tap-Text 'Receber'
-    Assert-Text 'Receber' 'tela Receber'
-    $r = Read-Address 'tb1q'
-    if ($r -ne $script:homeAddr) { throw 'Receber mostra um endereço diferente da Home' }
-    Write-Host '  OK  mesmo endereço na Home e em Receber' -ForegroundColor Green
     Tap-Text 'Voltar'
     Wait-Home 30 | Out-Null; Write-Host '  OK  voltou à Home' -ForegroundColor Green
+}
+
+Step 'TESTNET: bloquear e abrir de novo mostra o MESMO endereço' {
+    Tap-Text 'Bloquear'
+    Assert-Text 'Digite seu PIN' 'bloqueou'
+    $r = Try-Unlock $PIN 120
+    if ($r -ne 'home') { throw "não abriu: $r" }
+    Tap-Text 'Receber'
+    $again = Read-Address 'tb1q'
+    if ($again -ne $script:homeAddr) { throw 'o endereço mudou após bloquear e abrir' }
+    Write-Host '  OK  mesmo endereço após bloquear e desbloquear' -ForegroundColor Green
+    Tap-Text 'Voltar'
+    Wait-Home 30 | Out-Null
 }
 
 Step 'MAINNET (só gerar endereço): trocar de rede exige confirmação' {
@@ -99,7 +105,7 @@ Step 'MAINNET (só gerar endereço): trocar de rede exige confirmação' {
     Tap-Text 'Mudar para mainnet'
     Assert-Text 'Usar a mainnet?' 'aviso de risco aparece'
     Tap-Match '(?i)^cancelar$'
-    Assert-Text 'Testnet4 (sem valor)' 'cancelar mantém a testnet'
+    Wait-Text 'Testnet4 (sem valor)' 15 -Scroll | Out-Null; Write-Host '  OK  cancelar mantém a testnet' -ForegroundColor Green
 }
 
 Step 'MAINNET: confirma, desbloqueia e valida o endereço na blockchain real' {
@@ -109,10 +115,13 @@ Step 'MAINNET: confirma, desbloqueia e valida o endereço na blockchain real' {
     $r = Try-Unlock $PIN 120
     if ($r -ne 'home') { throw "não abriu após trocar de rede: $r" }
     Assert-Text 'MAINNET' 'selo vermelho de mainnet na Home'
+    Tap-Text 'Receber'
     $addr = Read-Address 'bc1q'
     Write-Host "  endereço: $addr"
     if ($addr -eq $script:homeAddr) { throw 'mesmo endereço nas duas redes' }
     Verify-OnChain 'mainnet' $addr
+    Tap-Text 'Voltar'
+    Wait-Home 30 | Out-Null
 }
 
 Step 'Volta para a testnet' {
@@ -122,6 +131,7 @@ Step 'Volta para a testnet' {
     $r = Try-Unlock $PIN 120
     if ($r -ne 'home') { throw "não abriu: $r" }
     Assert-Text 'TESTNET' 'testnet de volta'
+    Tap-Text 'Receber'
     $again = Read-Address 'tb1q'
     if ($again -ne $script:homeAddr) { throw 'o endereço testnet mudou após ida e volta' }
     Write-Host '  OK  endereço testnet idêntico após ida e volta' -ForegroundColor Green

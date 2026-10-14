@@ -96,6 +96,27 @@ export function selectCoins(
   throw new InsufficientFundsError(needed, available);
 }
 
+/** Tamanho (vbytes) da saída de destino por tipo de endereço; usado para estimar a taxa antes de montar. */
+export const DESTINATION_VBYTES = 31; // P2WPKH, o caso mais comum
+
+/**
+ * Maior valor que dá para enviar: todas as moedas gastáveis menos a taxa, sem troco.
+ * Devolve 0n se o saldo não cobre a taxa ou sobraria menos que a poeira.
+ */
+export function maxSendable(
+  utxos: readonly Utxo[],
+  feeRate: number,
+  opts: { allowUnconfirmed?: boolean; destinationVBytes?: number } = {},
+): bigint {
+  if (!Number.isFinite(feeRate) || feeRate <= 0) return 0n;
+  const usable = utxos.filter((u) => opts.allowUnconfirmed || u.confirmed);
+  if (usable.length === 0) return 0n;
+  const total = usable.reduce((s, u) => s + u.value, 0n);
+  const fee = feeFor(estimateVBytes(usable.length, opts.destinationVBytes ?? DESTINATION_VBYTES, false), feeRate);
+  const max = total - fee;
+  return max >= DUST_LIMIT_P2WPKH ? max : 0n;
+}
+
 export interface BuildParams {
   keys: HDWalletKeys;
   utxos: readonly Utxo[];

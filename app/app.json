@@ -1,32 +1,33 @@
 {
-    "expo":  {
-                 "name":  "BR Bit Wallet",
-                 "slug":  "brbit-wallet",
-                 "version":  "1.0.0",
-                 "orientation":  "portrait",
-                 "icon":  "./assets/icon.png",
-                 "userInterfaceStyle":  "dark",
-                 "newArchEnabled":  true,
-                 "splash":  {
-                                "image":  "./assets/splash-icon.png",
-                                "resizeMode":  "contain",
-                                "backgroundColor":  "#05060D"
-                            },
-                 "ios":  {
-                             "supportsTablet":  true
-                         },
-                 "web":  {
-                             "favicon":  "./assets/favicon.png"
-                         },
-                 "android":  {
-                                 "package":  "com.brbit.hotwallet",
-                                 "adaptiveIcon":  {
-                                                      "foregroundImage":  "./assets/adaptive-icon.png",
-                                                      "backgroundColor":  "#05060D"
-                                                  }
-                             },
-                 "plugins":  [
-                                 "expo-secure-store"
-                             ]
-             }
+  "expo": {
+    "name": "BR Bit Wallet",
+    "slug": "brbit-wallet",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#05060D"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "android": {
+      "package": "com.brbit.hotwallet",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#05060D"
+      }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font"
+    ]
+  }
 }

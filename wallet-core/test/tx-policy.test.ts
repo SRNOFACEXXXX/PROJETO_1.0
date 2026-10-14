@@ -8,6 +8,7 @@ import {
   InvalidTransactionError,
   buildAndSign,
   evaluateSpend,
+  maxSendable,
   mnemonicToSeed,
   selectCoins,
   type SpendPolicy,
@@ -69,6 +70,31 @@ describe('seleção de moedas', () => {
     expect(() => selectCoins([utxo(100_000n)], 0n, 2)).toThrow(InvalidTransactionError);
     expect(() => selectCoins([utxo(100_000n)], 10_000n, 0)).toThrow(InvalidTransactionError);
     expect(() => selectCoins([utxo(100_000n)], 10_000n, Number.NaN)).toThrow(InvalidTransactionError);
+  });
+});
+
+describe('maxSendable (botão MAX)', () => {
+  it('é o saldo menos a taxa, e enviar esse valor não deixa troco', () => {
+    const utxos = [utxo(100_000n, 1), utxo(50_000n, 2)];
+    const max = maxSendable(utxos, 5);
+    expect(max).toBeGreaterThan(149_000n);
+    expect(max).toBeLessThan(150_000n);
+    const sel = selectCoins(utxos, max, 5);
+    expect(sel.change).toBe(0n);
+    expect(sel.inputs).toHaveLength(2);
+    expect(sel.inputs.reduce((s, u) => s + u.value, 0n)).toBe(max + sel.fee);
+  });
+
+  it('ignora não confirmadas por padrão e zera quando não cobre a taxa', () => {
+    expect(maxSendable([utxo(100_000n, 1, false)], 5)).toBe(0n);
+    expect(maxSendable([utxo(100_000n, 1, false)], 5, { allowUnconfirmed: true })).toBeGreaterThan(0n);
+    expect(maxSendable([], 5)).toBe(0n);
+    expect(maxSendable([utxo(500n, 1)], 20)).toBe(0n);
+  });
+
+  it('taxa inválida devolve zero', () => {
+    expect(maxSendable([utxo(100_000n, 1)], 0)).toBe(0n);
+    expect(maxSendable([utxo(100_000n, 1)], Number.NaN)).toBe(0n);
   });
 });
 

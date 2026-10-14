@@ -1,14 +1,13 @@
-﻿# E2E 1: criar carteira. Roda no emulador, com toques visíveis. Carteira de TESTE;
-# as palavras da frase nunca são impressas.
+﻿# E2E 1: criar carteira no visual novo. Roda no emulador, com toques visíveis.
+# Carteira de TESTE; as palavras da frase nunca são impressas.
 #
-# Confirmação das 3 palavras (o ponto mais crítico do onboarding): cada caso abaixo
-# prova que o botão Confirmar só habilita quando as 3 palavras estão certas, nos
-# campos certos. Se o botão não for encontrado, o teste FALHA (não adivinha).
-. "$PSScriptRoot\adb-driver.ps1"
+# Quiz de backup (o ponto mais crítico do onboarding): prova que o botão só libera com a palavra
+# certa, que as 4 opções são distintas e vêm da própria frase, e que o "Voltar" mantém as palavras.
+. "$PSScriptRoot\flows.ps1"
 $ErrorActionPreference = 'Stop'
 $results = [ordered]@{}
 $script:words = @()
-$script:fields = @()
+$PIN = '482916'
 
 function Step([string]$name, [scriptblock]$body) {
     Write-Host "`n▶ $name" -ForegroundColor Cyan
@@ -16,147 +15,157 @@ function Step([string]$name, [scriptblock]$body) {
     catch { $results[$name] = "FALHOU: $($_.Exception.Message)"; Write-Host "  ✖ $($_.Exception.Message)" -ForegroundColor Red }
 }
 
-function Fill-Fields([string[]]$values) {
-    $f = @(Get-ConfirmFields)
-    for ($k = 0; $k -lt 3; $k++) { Set-Field $f[$k].Node $values[$k] }
+function Ok([string]$msg) { Write-Host "  OK  $msg" -ForegroundColor Green }
+
+# Opções do quiz: botões cujo nome é uma das 12 palavras.
+function Get-QuizOptions {
+    @((Get-Ui).SelectNodes('//node') | Where-Object { $_.clickable -eq 'true' -and ($script:words -contains $_.'content-desc') } | ForEach-Object { $_.'content-desc' })
 }
 
-function Right([int]$k) { $script:words[$script:fields[$k].Number - 1] }
+Start-FreshApp
 
-function Expect-Confirm([bool]$enabled, [string]$because) {
-    $actual = Test-Enabled 'Confirmar'
-    if ($actual -ne $enabled) {
-        $want = if ($enabled) { 'HABILITADO' } else { 'DESABILITADO' }
-        throw "Confirmar deveria estar $want ($because)"
-    }
-    Write-Host "  OK  $because" -ForegroundColor Green
-}
-
-# Começa do zero: limpa só os dados do app NOVO.
-& $script:Adb shell pm clear $script:Pkg | Out-Null
-& $script:Adb shell monkey -p $script:Pkg -c android.intent.category.LAUNCHER 1 | Out-Null
-
-Step 'Tela inicial: aviso de testnet' {
-    Assert-Text 'Criar carteira' 'botão Criar carteira visível'
+Step 'Boas-vindas' {
+    Assert-Text 'Criar nova carteira' 'botão Criar nova carteira'
+    Assert-Text 'Importar carteira' 'botão Importar carteira'
     Assert-Text 'Versão de testes. Rede padrão: testnet. Não use com dinheiro real.' 'aviso de testnet'
 }
 
-Step 'Frase oculta até o usuário pedir' {
-    Tap-Text 'Criar carteira'
-    Assert-Text 'Frase de recuperação' 'tela da frase abre'
-    Assert-Text 'Mostrar palavras' 'botão revelar presente'
-    if (@(Read-SeedWords).Count -ne 0) { throw 'palavras visíveis antes de pedir' }
-    Write-Host '  OK  nenhuma palavra visível antes de revelar' -ForegroundColor Green
-    if (Test-Enabled 'Continuar') { throw 'Continuar deveria estar desabilitado antes de anotar' }
-    Write-Host '  OK  Continuar desabilitado antes de anotar' -ForegroundColor Green
+Step 'Aviso da frase (etapa 1/4)' {
+    Tap-Text 'Criar nova carteira'
+    Assert-Text 'Suas 12 palavras são a única chave.' 'título do aviso'
+    Assert-Text 'TESTNET · SEM VALOR' 'selo da rede'
+    Assert-Text 'Anote em papel, na ordem exata' 'regra 1'
+    Assert-Text 'Nunca compartilhe, nem com o suporte' 'regra 3'
+    Assert-Text '1/4' 'indicador de etapa'
 }
 
-Step 'Revelar mostra 12 palavras válidas e distintas' {
+Step 'Frase oculta até pedir (etapa 2/4)' {
+    Tap-Text 'Entendi, continuar'
+    Assert-Text 'Anote suas 12 palavras' 'tela da frase'
+    Assert-Text '2/4' 'indicador de etapa'
+    if (@(Read-SeedWords).Count -ne 0) { throw 'palavras visíveis antes de pedir' }
+    $masked = @(Screen-Texts | Where-Object { $_ -eq '••••••' }).Count
+    if ($masked -ne 12) { throw "esperava 12 máscaras, vieram $masked" }
+    Ok '12 máscaras no lugar das palavras'
+    if (Test-Enabled 'Já anotei as palavras') { throw 'Já anotei deveria estar desabilitado antes de revelar' }
+    Ok 'Já anotei desabilitado antes de revelar'
+}
+
+Step 'Revelar mostra 12 palavras válidas' {
     Tap-Text 'Mostrar palavras'
     Start-Sleep 1
     $script:words = @(Read-SeedWords)
     if ($script:words.Count -ne 12) { throw "esperava 12 palavras, vieram $($script:words.Count)" }
     if (($script:words | Sort-Object -Unique).Count -lt 9) { throw 'palavras suspeitas (repetição demais)' }
-    Write-Host '  OK  12 palavras exibidas (não impressas)' -ForegroundColor Green
+    Ok '12 palavras exibidas (não impressas)'
+    if (-not (Test-Enabled 'Já anotei as palavras')) { throw 'Já anotei deveria habilitar após revelar' }
+    Ok 'Já anotei habilitado'
 }
 
-Step 'Continuar só libera depois de "Anotei"' {
-    Tap-Text 'Anotei as palavras'
-    if (-not (Test-Enabled 'Continuar')) { throw 'Continuar deveria habilitar após anotar' }
-    Write-Host '  OK  Continuar habilitado' -ForegroundColor Green
-    Tap-Text 'Continuar'
-    Assert-Text 'Confirme a frase' 'tela de confirmação abre'
+Step 'Quiz: opções distintas, todas da própria frase, botão travado' {
+    Tap-Text 'Já anotei as palavras'
+    Assert-Text 'Confirme o backup' 'tela do quiz'
+    Assert-Text '3/4' 'indicador de etapa'
+    $num = Read-QuizNumber
+    $opts = Get-QuizOptions
+    if ($opts.Count -ne 4) { throw "esperava 4 opções, vieram $($opts.Count)" }
+    if (($opts | Sort-Object -Unique).Count -ne 4) { throw 'opções repetidas' }
+    if ($opts -notcontains $script:words[$num - 1]) { throw 'a palavra certa não está entre as opções' }
+    Ok "4 opções distintas; a certa (nº $num) está entre elas"
+    if (Test-Enabled 'Escolha uma palavra') { throw 'botão deveria estar travado sem resposta' }
+    Ok 'botão travado antes de responder'
 }
 
-Step 'Confirmação: 3 campos, números distintos e em ordem crescente' {
-    $script:fields = @(Get-ConfirmFields)
-    if ($script:fields.Count -ne 3) { throw "esperava 3 campos, vieram $($script:fields.Count)" }
-    $n = @($script:fields | ForEach-Object { $_.Number })
-    if (($n | Sort-Object -Unique).Count -ne 3) { throw 'números repetidos' }
-    if (($n | Where-Object { $_ -lt 1 -or $_ -gt 12 }).Count -gt 0) { throw 'número fora de 1..12' }
-    if (($n -join ',') -ne (($n | Sort-Object) -join ',')) { throw 'campos fora de ordem' }
-    Write-Host "  OK  campos pedem as palavras nº $($n -join ', ')" -ForegroundColor Green
+Step 'Quiz: resposta errada é recusada, certa libera' {
+    $num = Read-QuizNumber
+    $right = $script:words[$num - 1]
+    $wrong = (Get-QuizOptions) | Where-Object { $_ -ne $right } | Select-Object -First 1
+    Tap-Text $wrong
+    Assert-Text 'Não é essa. Confira o papel e tente de novo.' 'mensagem de erro'
+    if (Test-Enabled 'Escolha uma palavra') { throw 'botão liberou com resposta errada!' }
+    Ok 'resposta errada não libera'
+    Tap-Text $right
+    Assert-Text 'Correto.' 'mensagem de acerto'
+    if (-not (Test-Enabled 'Próxima pergunta')) { throw 'botão deveria liberar com a resposta certa' }
+    Ok 'resposta certa libera'
 }
 
-Step 'Confirmação A: campos vazios -> desabilitado' {
-    Expect-Confirm $false 'vazio não confirma'
-}
-
-Step 'Confirmação B: só 1 de 3 certa -> desabilitado' {
-    Fill-Fields @((Right 0), '', '')
-    Expect-Confirm $false 'apenas a 1ª certa'
-}
-
-Step 'Confirmação C: 2 certas e 1 errada -> desabilitado' {
-    Fill-Fields @((Right 0), (Right 1), 'zzzzz')
-    Expect-Confirm $false 'duas certas, uma errada'
-}
-
-Step 'Confirmação D: palavras certas nos campos trocados -> desabilitado' {
-    Fill-Fields @((Right 1), (Right 2), (Right 0))
-    Expect-Confirm $false 'ordem errada'
-}
-
-Step 'Confirmação E: palavra da frase, mas de outra posição -> desabilitado' {
-    $other = $script:words[($script:fields[0].Number) % 12]   # posição seguinte à pedida
-    if ($other -eq (Right 0)) { Write-Host '  (palavra repetida na frase; caso ignorado)' } else {
-        Fill-Fields @($other, (Right 1), (Right 2))
-        Expect-Confirm $false 'palavra de outra posição'
-    }
-}
-
-Step 'Confirmação F: certas com espaços e maiúsculas -> habilitado' {
-    Fill-Fields @(('  ' + (Right 0).ToUpper() + ' '), (Right 1), (Right 2))
-    Expect-Confirm $true 'o app normaliza maiúsculas e espaços'
-}
-
-Step 'Voltar da confirmação mantém as MESMAS 12 palavras' {
+Step 'Voltar do quiz mantém as MESMAS 12 palavras' {
     Tap-Text 'Voltar'
-    Assert-Text 'Frase de recuperação' 'voltou para a frase'
+    Assert-Text 'Anote suas 12 palavras' 'voltou à frase'
     Tap-Text 'Mostrar palavras'
     Start-Sleep 1
     $again = @(Read-SeedWords)
     if (($again -join ' ') -ne ($script:words -join ' ')) { throw 'as palavras mudaram ao voltar (usuário perderia o que anotou)' }
-    Write-Host '  OK  mesmas palavras após voltar' -ForegroundColor Green
-    Tap-Text 'Anotei as palavras'; Tap-Text 'Continuar'
-    Assert-Text 'Confirme a frase' 'confirmação abre de novo'
-    # A cada visita o app sorteia 3 posições novas: releia quais são.
-    $script:fields = @(Get-ConfirmFields)
-    if ($script:fields.Count -ne 3) { throw 'campos da confirmação não encontrados após voltar' }
+    Ok 'mesmas palavras após voltar'
+    Tap-Text 'Já anotei as palavras'
 }
 
-Step 'Confirmação G: 3 certas -> habilitado e avança para o PIN' {
-    Fill-Fields @((Right 0), (Right 1), (Right 2))
-    Expect-Confirm $true 'três palavras certas'
-    $n = Find-Scrolling 'Confirmar'
-    $c = Get-Center $n
-    & $script:Adb shell input tap $c.X $c.Y
-    Assert-Text 'Crie seu PIN' 'tela de PIN abre'
+Step 'Quiz: 3 perguntas com posições distintas e crescentes' {
+    $seen = @()
+    for ($q = 1; $q -le 3; $q++) {
+        Wait-Match "Pergunta $q de 3\." 15 | Out-Null; Ok "pergunta $q de 3"
+        $num = Read-QuizNumber
+        $seen += $num
+        Tap-Text $script:words[$num - 1]
+        $next = if ($q -lt 3) { 'Próxima pergunta' } else { 'Continuar · +100 XP' }
+        Assert-Text $(if ($q -lt 3) { 'Correto.' } else { 'Correto. Backup validado.' }) 'acerto'
+        Tap-Text $next
+    }
+    if (($seen | Sort-Object -Unique).Count -ne 3) { throw "posições repetidas: $($seen -join ',')" }
+    if (($seen -join ',') -ne (($seen | Sort-Object) -join ',')) { throw 'posições fora de ordem' }
+    Ok "perguntas sobre as palavras nº $($seen -join ', ')"
 }
 
-Step 'PIN fraco é recusado' {
-    Tap-Pin '123456'
+Step 'PIN: botão travado, fraco recusado, divergente recusado' {
+    Assert-Text 'Crie seu PIN' 'tela de PIN'
+    Assert-Text '4/4' 'indicador de etapa'
+    if (Test-Enabled 'Digite os 6 dígitos') { throw 'botão deveria estar travado sem os 6 dígitos' }
+    Ok 'botão travado sem os 6 dígitos'
+    Tap-Pin '123456'; Tap-Text 'Continuar'
     Assert-Text 'O PIN não pode ser uma sequência.' 'sequência recusada'
-    Tap-Pin '111111'
+    Tap-Pin '111111'; Tap-Text 'Continuar'
     Assert-Text 'O PIN não pode repetir o mesmo dígito.' 'repetição recusada'
-}
-
-Step 'PINs diferentes não passam' {
-    Tap-Pin '482916'; Assert-Text 'Repita o PIN' 'pede repetição'
-    Tap-Pin '482917'
+    Tap-Pin $PIN; Tap-Text 'Continuar'
+    Assert-Text 'Repita o PIN' 'pede repetição'
+    Tap-Pin '482917'; Tap-Text 'Criar minha carteira'
     Assert-Text 'Os PINs não conferem. Comece de novo.' 'divergência detectada'
+    Assert-Text 'Crie seu PIN' 'voltou ao primeiro passo'
 }
 
-Step 'PIN forte cria a carteira e abre a Home' {
-    Tap-Pin '482916'; Assert-Text 'Repita o PIN' 'pede repetição'
-    Tap-Pin '482916'
-    Wait-Home 90 | Out-Null
-    Assert-Text 'TESTNET' 'rede testnet ativa'
+Step 'PIN forte cria a carteira' {
+    Tap-Pin $PIN; Tap-Text 'Continuar'
+    Assert-Text 'Repita o PIN' 'pede repetição'
+    Tap-Pin $PIN; Tap-Text 'Criar minha carteira'
+    Wait-Text 'Acessar carteira' 120 | Out-Null
+    Ok 'carteira criada'
+}
+
+Step 'Tela "Carteira criada": endereço, Solana em breve, nível e XP reais' {
+    Assert-Text 'Carteira criada' 'título'
+    $addr = Wait-Match '^tb1q[0-9a-z]{30,}$' 20
+    Ok "endereço testnet exibido ($($addr.Substring(0, 10))…)"
+    Assert-Text "m/84'/1'/0'/0/0" 'caminho BIP84 testnet'
+    Assert-Text 'em breve' 'Solana marcada como em breve (sem fingir suporte)'
+    Assert-Text 'Nível 1 · Guardião' 'nível 1'
+    Assert-Text '+150 XP' 'XP real: 100 do backup + 50 do PIN'
+}
+
+Step 'Home: rede, nível, sequência e atalhos' {
+    Tap-Text 'Acessar carteira'
+    Wait-Home 60 | Out-Null
+    Assert-Text 'TESTNET' 'selo de rede'
+    Assert-Text 'Carteira Principal' 'nome da carteira'
+    Assert-Text '1 dia' 'sequência de 1 dia'
+    Assert-Text 'Enviar' 'botão Enviar'
     Assert-Text 'Receber' 'botão Receber'
+    Assert-Text 'Bitcoin' 'linha do ativo'
+    Assert-Text 'Mercado' 'aba Mercado'
+    Assert-Text 'Atividade' 'aba Atividade'
 }
 
 Write-Host "`n══════ RESULTADO ══════" -ForegroundColor Cyan
-$results.GetEnumerator() | ForEach-Object { $c = if ($_.Value -eq 'PASSOU') { 'Green' } else { 'Red' }; Write-Host ("{0,-62} {1}" -f $_.Key, $_.Value) -ForegroundColor $c }
+$results.GetEnumerator() | ForEach-Object { $c = if ($_.Value -eq 'PASSOU') { 'Green' } else { 'Red' }; Write-Host ("{0,-70} {1}" -f $_.Key, $_.Value) -ForegroundColor $c }
 $failed = @($results.Values | Where-Object { $_ -ne 'PASSOU' }).Count
 Write-Host "`n$($results.Count - $failed)/$($results.Count) etapas passaram"
 exit $failed

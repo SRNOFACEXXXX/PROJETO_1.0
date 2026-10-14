@@ -98,30 +98,52 @@ function Tap-Node($node) {
     Start-Sleep -Milliseconds 600
 }
 
-function Wait-Text([string]$needle, [int]$seconds = 20, [string[]]$FailOn = $null) {
+function Wait-Text([string]$needle, [int]$seconds = 20, [string[]]$FailOn = $null, [switch]$Scroll) {
     # Se o texto esperado é, ele mesmo, uma mensagem de erro conhecida, não falha por ela.
     if ($null -eq $FailOn) { $FailOn = @($script:ErrorPatterns | Where-Object { $needle -notmatch $_ }) }
-    Wait-Until ({ param($ui, $t) Find-Node $ui $needle }.GetNewClosure()) "texto '$needle'" $seconds $FailOn
+    $state = @{ misses = 0 }
+    $adb = $script:Adb   # o bloco abaixo é um closure: ele não enxerga $script:*, então capturamos aqui
+    $cond = {
+        param($ui, $t)
+        $n = Find-Node $ui $needle
+        if (-not $n -and $Scroll) {
+            # Depois de 2 tentativas sem achar, rola a tela para baixo (elemento pode estar fora da vista).
+            $state.misses++
+            if ($state.misses -ge 2) { & $adb shell input swipe 360 1000 360 520 250; Start-Sleep -Milliseconds 400 }
+        }
+        $n
+    }.GetNewClosure()
+    Wait-Until $cond "texto '$needle'" $seconds $FailOn
 }
 
 # A Home é reconhecida pelos botões fixos "Bloquear" + "Ajustes". Os textos do saldo mudam
 # ("Saldo disponível" / "Último saldo conhecido" / "Sincronizando…") conforme o estado da rede.
-function Test-OnHome([string[]]$texts) { ($texts -contains 'Bloquear') -and ($texts -contains 'Ajustes') }
+function Test-OnHome([string[]]$texts) { ($texts -contains 'Bloquear') -and ($texts -contains 'Ajustes') -and ($texts -contains 'Receber') }
 
 function Wait-Home([int]$seconds = 60) {
     Wait-Until ({ param($ui, $t) Test-OnHome $t }) 'Home (botões Bloquear e Ajustes)' $seconds
 }
 
 function Tap-Text([string]$needle, [int]$seconds = 20) {
-    $n = Wait-Text $needle $seconds
+    $n = Wait-Text $needle $seconds -Scroll
     if (-not $n) { throw "Elemento não encontrado na tela: '$needle'" }
     $c = Get-Center $n
     & $script:Adb shell input tap $c.X $c.Y
     Start-Sleep -Milliseconds 600
 }
 
+# Digita o PIN lendo o teclado UMA vez e disparando todos os toques numa única chamada ao adb
+# (antes: uma leitura de tela por dígito, ~1,5 s cada, o que gastava o bloqueio de 30 s do app).
 function Tap-Pin([string]$digits) {
-    foreach ($d in $digits.ToCharArray()) { Tap-Text "$d" 8 }
+    $ui = Wait-Until { param($ui, $t) if (Find-Node $ui '5') { $ui } } 'teclado numérico do PIN' 15
+    $taps = foreach ($d in $digits.ToCharArray()) {
+        $n = Find-Node $ui "$d"
+        if (-not $n) { throw "tecla '$d' não encontrada no teclado" }
+        $c = Get-Center $n
+        "input tap $($c.X) $($c.Y)"
+    }
+    & $script:Adb shell (($taps -join '; sleep 0.15; ') + '; sleep 0.3')
+    $script:LastPinAt = Get-Date   # instante em que o PIN foi enviado (os testes de bloqueio medem a janela por ele)
 }
 
 function Type-Into([string]$needle, [string]$text) {

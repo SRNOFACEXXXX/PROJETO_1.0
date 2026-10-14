@@ -29,7 +29,11 @@ Step 'PIN correto abre a carteira (e mede o tempo de desbloqueio)' {
     $t0 = Get-Date
     $r = Try-Unlock $PIN 90
     if ($r -ne 'home') { throw "esperava abrir a Home, veio: $r" }
-    Write-Host ("  OK  desbloqueou em ~{0}s" -f [int]((Get-Date) - $t0).TotalSeconds) -ForegroundColor Green
+    $secs = $script:LastUnlockSecs   # do último toque do PIN até a Home aparecer
+    Write-Host "  OK  desbloqueou ~${secs}s depois do último dígito" -ForegroundColor Green
+    # Trava de desempenho: a seed vem pronta do cofre, então só o scrypt pesa (~5 s no emulador).
+    if ($secs -gt 20) { throw "desbloqueio lento demais: ${secs}s (esperado < 20 s). A seed está sendo recalculada?" }
+    Write-Host '  OK  desbloqueio dentro do limite de 20 s' -ForegroundColor Green
     Tap-Text 'Bloquear'; Assert-Text 'Digite seu PIN' 'bloqueou de novo'
 }
 
@@ -53,26 +57,47 @@ Step 'Após 5 erros seguidos, o app bloqueia as tentativas' {
     $r = Try-Unlock $WRONG
     if ($r -notmatch '^Bloqueado por|^Muitas tentativas') { throw "5º erro deveria bloquear, veio: '$r'" }
     Write-Host "  OK  bloqueio ativado ('$r')" -ForegroundColor Green
+    $script:lockAt = Get-Date   # o bloqueio começou um instante ANTES deste ponto (margem a favor do app)
 }
 
 Step 'Durante o bloqueio, nem o PIN correto abre' {
     Tap-Pin $PIN
-    Start-Sleep 6
+    Start-Sleep 2
     if (Test-OnHome @(Screen-Texts)) { throw 'PIN correto abriu a carteira durante o bloqueio!' }
     Assert-Text 'Digite seu PIN' 'continua na tela de bloqueio'
+}
+
+Step 'O bloqueio dobra no erro seguinte (30 s -> 60 s)' {
+    # Espera o 1º bloqueio acabar e erra de novo: o próximo bloqueio deve ser o dobro.
+    $wait = 31 - [int]((Get-Date) - $script:lockAt).TotalSeconds
+    if ($wait -gt 0) { Write-Host "  aguardando o 1º bloqueio expirar (${wait}s)..."; Start-Sleep $wait }
+    $r = Try-Unlock $WRONG 30
+    if ($r -notmatch '^Bloqueado por (?:(\d+)min )?(\d+)s') { throw "esperava um 2º bloqueio, veio: '$r'" }
+    $secs = 60 * [int]($Matches[1] + 0) + [int]$Matches[2]
+    if ($secs -lt 50 -or $secs -gt 61) { throw "o 2º bloqueio deveria ser ~60 s, veio ${secs}s ('$r')" }
+    Write-Host "  OK  2º bloqueio de ~${secs}s (dobrou)" -ForegroundColor Green
+    $script:lockAt = Get-Date
+    $script:lockSecs = 60
 }
 
 Step 'O bloqueio sobrevive a fechar e reabrir o app' {
     Restart-App
     Assert-Text 'Digite seu PIN' 'app reabre pedindo PIN' | Out-Null
     $r = Try-Unlock $PIN 20
-    if ($r -eq 'home') { throw 'reabrir o app burlou o bloqueio (contador não persistiu)' }
-    Write-Host "  OK  continua bloqueado após reabrir ('$r')" -ForegroundColor Green
+    $elapsed = [int]($script:LastPinAt - $script:lockAt).TotalSeconds
+    if ($r -eq 'home') {
+        # O PIN foi enviado a $elapsed s do início do bloqueio (60 s). Dentro da janela = falha de segurança real;
+        # perto do fim = o emulador foi lento demais para este teste concluir (resultado inconclusivo, mas FALHA).
+        if ($elapsed -lt 50) { throw "FALHA DE SEGURANÇA: reabrir o app burlou o bloqueio (PIN enviado a ${elapsed}s de 60s)" }
+        throw "inconclusivo: o robô só enviou o PIN a ${elapsed}s do bloqueio de 60s (o emulador está lento); rode de novo"
+    }
+    Write-Host "  OK  continua bloqueado após reabrir (PIN enviado a ${elapsed}s do bloqueio de 60s): '$r'" -ForegroundColor Green
 }
 
 Step 'Passado o tempo do bloqueio, o PIN correto volta a funcionar' {
-    Write-Host '  aguardando o bloqueio de 30 s expirar...'
-    Start-Sleep 35
+    $left = 63 - [int]((Get-Date) - $script:lockAt).TotalSeconds
+    Write-Host "  aguardando o bloqueio de 60 s expirar (${left}s)..."
+    if ($left -gt 0) { Start-Sleep $left }
     Restart-App
     Assert-Text 'Digite seu PIN' 'app reabre pedindo PIN' | Out-Null
     $r = Try-Unlock $PIN 90

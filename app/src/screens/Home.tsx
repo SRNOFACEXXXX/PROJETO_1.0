@@ -1,233 +1,179 @@
-import {
-  ExplorerError,
-  GAP,
-  MempoolExplorer,
-  RateLimitedError,
-  syncWallet,
-  type DerivedAddress,
-  type WalletState,
-} from '@brbit/wallet-core';
+import { TIMEFRAMES, formatBrlFixed, formatPct, type Candle, type Ticker } from '@brbit/wallet-core';
 import * as Clipboard from 'expo-clipboard';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, Share, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { formatBtc } from '../format';
+import { AreaSpark, trendColor } from '../charts';
+import { formatBtc, formatBtcShort } from '../format';
+import { Icon, type IconName } from '../icons';
+import { marketClient } from '../market';
 import type { Nav } from '../nav';
-import { currentKeys, isFreshWallet, lockWallet, markSynced } from '../session';
-import { loadCache, saveCache, type WalletCache } from '../storage';
-import { colors, glow } from '../theme';
-import { Banner, Body, Card, Mono, NeonButton, Screen, Title } from '../ui';
+import { award, levelFor, touchStreak, type Progress } from '../progress';
+import { currentKeys, lockWallet } from '../session';
+import { StatusBanner } from '../status';
+import { colors, fonts, glow, type } from '../theme';
+import { Banner, Button, CoinBadge, Header, Label, Mono, P, Pill, Screen } from '../ui';
+import { useResource } from '../useResource';
+import { useWallet } from '../useWallet';
 
-export type SyncStatus = 'loading' | 'ok' | 'retrying' | 'failed';
+const SATS = 100_000_000;
 
-/** Tentativas automáticas antes de entregar o controle ao usuário. */
-const MAX_AUTO_RETRIES = 6;
-/** Espera entre tentativas automáticas (s): 5, 10, 20, 40, 60, 60. */
-const retryDelaySec = (attempt: number) => Math.min(60, 5 * 2 ** attempt);
-
-export function friendlyError(e: unknown): string {
-  if (e instanceof RateLimitedError) return 'O servidor de blockchain está ocupado (limite de requisições).';
-  if (e instanceof ExplorerError) return e.message;
-  return 'Não foi possível sincronizar agora.';
-}
-
-/**
- * Estado da carteira com a rede. Regras:
- *  1. O endereço de recebimento é SEMPRE calculado no aparelho: aparece mesmo sem rede.
- *  2. Falha de rede vira nova tentativa automática, com contagem regressiva visível.
- *  3. O último saldo conhecido (cache) é mostrado, marcado como desatualizado.
- *  4. Varredura mínima: carteira nova 3 endereços, já sincronizada 5, importada 20.
- */
-export function useWallet() {
-  const keys = currentKeys();
-  const [state, setState] = useState<WalletState | null>(null);
-  const [cache, setCache] = useState<WalletCache | null>(null);
-  const [status, setStatus] = useState<SyncStatus>('loading');
-  const [error, setError] = useState<string | null>(null);
-  const [retryIn, setRetryIn] = useState(0);
-  const attempt = useRef(0);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const alive = useRef(true);
-  const running = useRef(false);
-
-  const stopTimer = () => {
-    if (timer.current) clearInterval(timer.current);
-    timer.current = null;
-  };
-
-  const run = useCallback(async () => {
-    if (!keys || running.current) return;
-    running.current = true;
-    stopTimer();
-    setStatus('loading');
-    setError(null);
-    const net = keys.network.name;
-    try {
-      const cached = await loadCache(net);
-      if (alive.current) setCache(cached);
-      const gapLimit = isFreshWallet() ? GAP.fresh : cached ? GAP.refresh : GAP.restore;
-      const explorer = new MempoolExplorer(keys.network.explorerApi, fetch as never);
-      const s = await syncWallet(keys, explorer, { gapLimit });
-      if (!alive.current) return;
-      const fresh: WalletCache = {
-        confirmed: s.confirmedSats.toString(),
-        pending: s.pendingSats.toString(),
-        receiveIndex: s.nextReceive.index,
-        changeIndex: s.nextChange.index,
-        at: Date.now(),
-      };
-      await saveCache(net, fresh).catch(() => undefined);
-      markSynced();
-      attempt.current = 0;
-      setState(s);
-      setCache(fresh);
-      setStatus('ok');
-    } catch (e) {
-      if (!alive.current) return;
-      setError(friendlyError(e));
-      if (attempt.current >= MAX_AUTO_RETRIES) {
-        setStatus('failed');
-      } else {
-        const wait = retryDelaySec(attempt.current++);
-        setStatus('retrying');
-        setRetryIn(wait);
-        let left = wait;
-        timer.current = setInterval(() => {
-          left -= 1;
-          if (left <= 0) {
-            stopTimer();
-            running.current = false;
-            void run();
-          } else if (alive.current) setRetryIn(left);
-        }, 1000);
-      }
-    } finally {
-      running.current = false;
-    }
-  }, [keys]);
-
-  /** "Tentar agora": zera a contagem e tenta já. */
-  const refresh = useCallback(() => {
-    stopTimer();
-    attempt.current = 0;
-    running.current = false;
-    void run();
-  }, [run]);
-
-  useEffect(() => {
-    alive.current = true;
-    void run();
-    return () => {
-      alive.current = false;
-      stopTimer();
-    };
-  }, [run]);
-
-  // Endereço calculado localmente: não depende da rede.
-  const local: DerivedAddress | null = keys ? keys.addressAt(0, state?.nextReceive.index ?? cache?.receiveIndex ?? 0) : null;
-  const address = state?.nextReceive ?? local;
-  const confirmed = state ? state.confirmedSats : cache ? BigInt(cache.confirmed) : null;
-  const pending = state ? state.pendingSats : cache ? BigInt(cache.pending) : 0n;
-
-  return { state, address, confirmed, pending, stale: status !== 'ok', status, error, retryIn, refresh };
-}
-
-export function SyncBanner({ status, error, retryIn }: { status: SyncStatus; error: string | null; retryIn: number }) {
-  if (status === 'ok' || (status === 'loading' && !error)) return null;
-  if (status === 'retrying') {
-    return <Banner kind="warn">{error} Nova tentativa em {retryIn}s. Seu endereço e seus fundos continuam seguros.</Banner>;
-  }
-  if (status === 'failed') {
-    return <Banner kind="danger">{error} Toque em "Tentar agora" quando a conexão voltar.</Banner>;
-  }
-  return null;
+function ActionCircle({ icon, label, onPress, disabled, testID }: { icon: IconName; label: string; onPress?: () => void; disabled?: boolean; testID?: string }) {
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={{ flex: 1, alignItems: 'center', gap: 8, opacity: disabled ? 0.4 : 1 }}
+    >
+      <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.surface, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} size={24} color={colors.green} stroke={1.9} />
+      </View>
+      <Text style={{ fontFamily: fonts.bodySemi, fontSize: 13, color: colors.soft }}>{label}</Text>
+    </Pressable>
+  );
 }
 
 export function Home({ nav }: { nav: Nav }) {
   const keys = currentKeys();
   const w = useWallet();
   const net = keys?.network.name ?? 'testnet';
-  const unit = net === 'testnet' ? 'tBTC' : 'BTC';
+  const isMain = net === 'mainnet';
+  const [prog, setProg] = useState<Progress | null>(null);
+  useEffect(() => {
+    touchStreak().then(setProg);
+  }, []);
+
+  const ticker = useResource<Ticker>('ticker:BTCBRL', async () => (await marketClient.getTickers(['BTCBRL']))[0]!, 30_000);
+  const day = useResource<Candle[]>('candles:BTCBRL:24H', () => marketClient.getCandles('BTCBRL', TIMEFRAMES['24H']), 120_000);
+
+  const lv = levelFor(prog?.xp ?? 0);
+  const sats = w.confirmed;
+  const btc = sats !== null ? Number(sats) / SATS : null;
+  const price = ticker.data?.last ?? null;
+  const brl = isMain && btc !== null && price !== null ? btc * price : null;
+  const delta = isMain && btc !== null && ticker.data ? btc * (ticker.data.last - ticker.data.open) : null;
+  const closes = day.data?.map((c) => c.close) ?? [];
+  const held = isMain && btc !== null && btc > 0;
+  const chartValues = held ? closes.map((c) => c * btc!) : closes;
+  const up = (ticker.data?.changePct ?? 0) >= 0;
+  const unit = isMain ? 'BTC' : 'tBTC';
 
   return (
-    <Screen>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ color: colors.cyan, letterSpacing: 6, fontWeight: '800' }}>BR BIT</Text>
-        <View
-          style={{
-            borderColor: net === 'mainnet' ? colors.danger : colors.lime,
-            borderWidth: 1,
-            borderRadius: 99,
-            paddingHorizontal: 12,
-            paddingVertical: 4,
+    <Screen tab={{ active: 'home', nav }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Nível ${lv.level}`} onPress={() => nav.go({ name: 'settings' })} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: colors.green, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 15, color: colors.green }}>Nv{lv.level}</Text>
+          </View>
+          <View style={{ flexShrink: 1 }}>
+            <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: colors.text }}>Carteira Principal</Text>
+            <Text style={type.monoSm}>
+              {prog?.xp ?? 0}
+              {lv.next ? ` / ${lv.next.from}` : ''} XP
+            </Text>
+          </View>
+        </Pressable>
+        {prog && prog.streak > 0 ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
+            <Icon name="flame" size={14} color={colors.green} stroke={2} />
+            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: colors.soft }}>
+              {prog.streak} {prog.streak === 1 ? 'dia' : 'dias'}
+            </Text>
+          </View>
+        ) : null}
+        <Pressable
+          testID="btn-lock"
+          accessibilityRole="button"
+          accessibilityLabel="Bloquear"
+          onPress={() => {
+            lockWallet();
+            nav.go({ name: 'lock' });
           }}
+          style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' }}
         >
-          <Text style={{ color: net === 'mainnet' ? colors.danger : colors.lime, fontSize: 12, fontWeight: '800' }}>
-            {net === 'mainnet' ? 'MAINNET' : 'TESTNET'}
+          <Icon name="lockClosed" size={20} color={colors.soft} />
+        </Pressable>
+      </View>
+
+      <View style={{ gap: 6, paddingTop: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ fontFamily: fonts.bodySemi, fontSize: 13, color: colors.muted }}>
+            {w.stale && sats !== null ? 'Último saldo conhecido' : 'Saldo total'}
+          </Text>
+          <Pill tone={isMain ? 'red' : 'green'} dot>
+            {isMain ? 'MAINNET' : 'TESTNET'}
+          </Pill>
+        </View>
+        {isMain ? (
+          <Text testID="balance" adjustsFontSizeToFit numberOfLines={1} style={{ fontFamily: fonts.display, fontSize: 48, lineHeight: 52, letterSpacing: -1, color: w.stale ? colors.soft : colors.text }}>
+            {brl !== null ? formatBrlFixed(brl) : sats !== null ? `${formatBtc(sats)} BTC` : w.status === 'loading' ? '…' : '—'}
+          </Text>
+        ) : (
+          <Text testID="balance" adjustsFontSizeToFit numberOfLines={1} style={{ fontFamily: fonts.display, fontSize: 40, lineHeight: 46, letterSpacing: -1, color: w.stale ? colors.soft : colors.text }}>
+            {sats !== null ? formatBtc(sats) : w.status === 'loading' ? '…' : '—'} <Text style={{ fontSize: 20, color: colors.green }}>{unit}</Text>
+          </Text>
+        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+          {isMain && ticker.data ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 28, paddingHorizontal: 10, borderRadius: 14, backgroundColor: up ? colors.greenFaint : colors.redFaint }}>
+              <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: trendColor(up) }}>
+                {up ? '▲' : '▼'} {delta !== null && held ? `${delta >= 0 ? '+' : '−'}${formatBrlFixed(Math.abs(delta))} · ` : ''}
+                {formatPct(ticker.data.changePct)}
+              </Text>
+            </View>
+          ) : null}
+          <Text style={{ fontFamily: fonts.bodyReg, fontSize: 12, color: colors.muted }}>
+            {isMain ? (held ? 'hoje' : 'Bitcoin hoje') : 'Testnet · sem valor em reais'}
           </Text>
         </View>
-      </View>
-
-      <Card accent={colors.cyan} style={{ alignItems: 'center', paddingVertical: 28 }}>
-        <Body muted>{w.stale && w.confirmed !== null ? 'Último saldo conhecido' : 'Saldo disponível'}</Body>
-        <Text
-          testID="balance"
-          style={{ color: w.stale ? colors.muted : colors.text, fontSize: 36, fontWeight: '900', ...glow(colors.cyan, 0.3) }}
-          adjustsFontSizeToFit
-          numberOfLines={1}
-        >
-          {w.confirmed !== null ? formatBtc(w.confirmed) : w.status === 'loading' ? '…' : '—'}{' '}
-          <Text style={{ fontSize: 18, color: colors.cyan }}>{unit}</Text>
+        {closes.length > 1 ? <AreaSpark values={chartValues} up={up} /> : <View style={{ height: 70 }} />}
+        <Text style={{ fontFamily: fonts.bodyReg, fontSize: 11, color: colors.dim }}>
+          {held ? 'Seu saldo em 24 h (com o saldo atual)' : 'Preço do Bitcoin em 24 h'}
         </Text>
-        {w.pending > 0n ? <Body style={{ color: colors.warn, fontSize: 13 }}>+ {formatBtc(w.pending)} pendente</Body> : null}
-        {w.status === 'loading' ? <Body muted style={{ fontSize: 12 }}>Sincronizando…</Body> : null}
-      </Card>
-
-      <View style={{ flexDirection: 'row', gap: 12 }}>
-        <View style={{ flex: 1 }}>
-          <NeonButton testID="btn-receive" title="Receber" onPress={() => nav.go({ name: 'receive' })} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <NeonButton testID="btn-send" title="Enviar" variant="secondary" onPress={() => nav.go({ name: 'send' })} />
-        </View>
       </View>
 
-      <SyncBanner status={w.status} error={w.error} retryIn={w.retryIn} />
-      <NeonButton
-        testID="btn-refresh"
-        title={w.status === 'ok' ? 'Atualizar' : 'Tentar agora'}
-        variant="ghost"
-        loading={w.status === 'loading'}
-        onPress={w.refresh}
-      />
-
-      {w.address ? (
-        <Card>
-          <Body muted>Endereço de recebimento</Body>
-          <Mono color={colors.lime} size={13}>{w.address.address}</Mono>
-          <Body muted style={{ fontSize: 12 }}>
-            {w.address.path}
-            {w.state ? ` · ${w.state.utxos.length} saída(s)` : ' · calculado no aparelho'}
-          </Body>
-        </Card>
-      ) : null}
-
-      <View style={{ flexDirection: 'row', gap: 12 }}>
-        <View style={{ flex: 1 }}>
-          <NeonButton testID="btn-settings" title="Ajustes" variant="ghost" onPress={() => nav.go({ name: 'settings' })} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <NeonButton
-            testID="btn-lock"
-            title="Bloquear"
-            variant="ghost"
-            onPress={() => {
-              lockWallet();
-              nav.go({ name: 'lock' });
-            }}
-          />
-        </View>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <ActionCircle testID="btn-send" icon="send" label="Enviar" onPress={() => nav.go({ name: 'send' })} />
+        <ActionCircle testID="btn-receive" icon="receive" label="Receber" onPress={() => nav.go({ name: 'receive' })} />
+        <ActionCircle icon="swap" label="Trocar" disabled />
+        <ActionCircle icon="plus" label="Comprar" disabled />
       </View>
+
+      <StatusBanner status={w.status} error={w.error} retryIn={w.retryIn} note="Seu endereço e seus fundos continuam seguros." />
+
+      <View style={{ gap: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={type.section}>Ativos</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Ver mercado" onPress={() => nav.go({ name: 'markets' })} style={{ minHeight: 32, justifyContent: 'center' }}>
+            <Text style={{ fontFamily: fonts.bodySemi, fontSize: 13, color: colors.green }}>Ver mercado</Text>
+          </Pressable>
+        </View>
+        <Pressable
+          testID="asset-btc"
+          accessibilityRole="button"
+          accessibilityLabel="Bitcoin"
+          onPress={() => nav.go({ name: 'market', symbol: 'BTCBRL' })}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, minHeight: 68, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
+        >
+          <CoinBadge letter="B" bg={colors.btc} ink={colors.btcInk} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: colors.text }}>Bitcoin</Text>
+            <Text style={type.monoSm}>
+              {sats !== null ? formatBtcShort(sats) : '—'} {unit}
+            </Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: colors.text }}>{isMain ? (brl !== null ? formatBrlFixed(brl) : '—') : 'sem valor'}</Text>
+            {ticker.data ? <Text style={{ fontFamily: fonts.mono, fontSize: 12, color: trendColor(up) }}>{formatPct(ticker.data.changePct)}</Text> : null}
+          </View>
+        </Pressable>
+      </View>
+
+      <Button testID="btn-refresh" title={w.status === 'ok' ? 'Atualizar' : 'Tentar agora'} variant="ghost" loading={w.status === 'loading'} onPress={w.refresh} />
     </Screen>
   );
 }
@@ -236,39 +182,60 @@ export function Receive({ nav }: { nav: Nav }) {
   const w = useWallet();
   const [copied, setCopied] = useState(false);
   const address = w.address?.address;
+  const net = currentKeys()?.network.name ?? 'testnet';
+
+  async function copy() {
+    if (!address) return;
+    await Clipboard.setStringAsync(address);
+    setCopied(true);
+    void award('firstReceive');
+  }
+
   return (
-    <Screen>
-      <Title>Receber</Title>
-      <Body muted>Cada recebimento usa um endereço novo, para proteger sua privacidade.</Body>
-      <Card accent={colors.lime} style={{ alignItems: 'center', gap: 16 }}>
+    <Screen
+      footer={
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Button testID="btn-copy" title={copied ? '✓ Copiado' : 'Copiar'} icon="copy" disabled={!address} onPress={() => void copy()} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button testID="btn-share" title="Compartilhar" variant="outline" disabled={!address} onPress={() => address && void Share.share({ message: address })} />
+          </View>
+        </View>
+      }
+    >
+      <Header title="Receber" onBack={() => nav.go({ name: 'home' })} />
+      <View style={{ alignItems: 'center', gap: 18, paddingTop: 26, paddingBottom: 22, paddingHorizontal: 20, borderRadius: 28, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}>
         {address ? (
           <>
-            <View style={{ backgroundColor: '#fff', padding: 14, borderRadius: 16 }}>
-              <QRCode value={address.toUpperCase()} size={200} />
+            <View style={[{ padding: 14, borderRadius: 20, backgroundColor: '#fff' }, glow(colors.green, 0.7)]}>
+              <QRCode value={address} size={204} />
             </View>
-            <Mono color={colors.lime} size={13}>{address}</Mono>
+            <View style={{ alignItems: 'center', gap: 6 }}>
+              <Label>{net === 'mainnet' ? 'SEU ENDEREÇO BITCOIN' : 'SEU ENDEREÇO BITCOIN (TESTNET)'}</Label>
+              <Mono style={{ textAlign: 'center', maxWidth: 290 }}>{address}</Mono>
+            </View>
           </>
         ) : (
-          <Body muted>Carteira bloqueada.</Body>
+          <P>Carteira bloqueada.</P>
         )}
-      </Card>
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+        <Icon name="shieldCheck" size={18} color={colors.green} />
+        <Text style={{ flex: 1, fontFamily: fonts.bodyReg, fontSize: 13, lineHeight: 19, color: colors.muted }}>
+          {net === 'mainnet'
+            ? 'Envie apenas Bitcoin (BTC) para este endereço. Outros ativos podem ser perdidos. Cada recebimento usa um endereço novo.'
+            : 'Rede de testes: envie apenas Bitcoin de testnet (tBTC) para este endereço. Cada recebimento usa um endereço novo.'}
+        </Text>
+      </View>
+
       {w.stale && address ? (
-        <Banner kind="info">
+        <Banner kind="info" icon="shield">
           Endereço calculado no aparelho. A rede ainda não confirmou se ele já foi usado, mas ele é válido para receber.
         </Banner>
       ) : null}
-      <SyncBanner status={w.status} error={w.error} retryIn={w.retryIn} />
-      <NeonButton
-        testID="btn-copy"
-        title={copied ? '✓ Copiado' : 'Copiar endereço'}
-        disabled={!address}
-        onPress={async () => {
-          if (!address) return;
-          await Clipboard.setStringAsync(address);
-          setCopied(true);
-        }}
-      />
-      <NeonButton title="Voltar" variant="ghost" onPress={() => nav.go({ name: 'home' })} />
+      <StatusBanner status={w.status} error={w.error} retryIn={w.retryIn} />
     </Screen>
   );
 }
