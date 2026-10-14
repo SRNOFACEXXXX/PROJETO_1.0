@@ -7,7 +7,7 @@ construído, o que foi medido e o que **ainda não está resolvido**.
 
 | Técnica | O que foi feito | Resultado |
 |---|---|---|
-| Análise estática do APK com **REA (JADX)** | `inspect-android-package` no nosso próprio APK: manifest decodificado, permissões, componentes exportados | 5 achados de configuração (abaixo); 4 corrigidos |
+| Análise estática do APK com **REA (JADX)** | `inspect-android-package` no nosso próprio APK: manifest decodificado, permissões, componentes exportados | 5 achados de configuração (abaixo); todos resolvidos no release, reconferido com o REA |
 | Revisão do código | busca por `console.*`, segredos fixos, hosts de rede, uso da área de transferência | nenhum log, nenhum segredo fixo, 3 hosts, clipboard só para copiar o endereço e colar o destino |
 | Verificação cruzada de criptografia | derivação de endereços e assinaturas conferidas com `bitcoinjs-lib` (outra implementação) | idênticas; assinaturas ECDSA válidas, low-S, SIGHASH_ALL |
 | Testes de ataque no núcleo | cofre adulterado, parâmetros de KDF maliciosos (negação de serviço), respostas hostis do servidor, injeção de caminho, endereço de outra rede | todos recusados (`wallet-core/test`) |
@@ -20,8 +20,12 @@ construído, o que foi medido e o que **ainda não está resolvido**.
 | 1 | `allowBackup="true"` | média | **Corrigido**: `withHardenedManifest` força `false` |
 | 2 | Provedor de arquivos exportado (`ClipboardFileProvider`, do `expo-clipboard`) | média | **Corrigido**: removido no merge do manifest (só usamos texto) |
 | 3 | Permissões `READ/WRITE_EXTERNAL_STORAGE` e `USE_FINGERPRINT` sem uso | baixa | **Corrigido**: bloqueadas em `app.json` |
-| 4 | `debuggable="true"` e `usesCleartextTraffic="true"` | alta se fosse release | **Só no APK de desenvolvimento** (vêm do manifest de debug do React Native, necessário para o Metro). O plugin proíbe tráfego sem TLS no manifest principal; **precisa ser reconferido no APK release** |
-| 5 | `SYSTEM_ALERT_WINDOW` | baixa | Vem do manifest de debug; **conferir que não existe no release** |
+| 4 | `debuggable="true"` e `usesCleartextTraffic="true"` | alta se fosse release | **Só no APK de desenvolvimento.** Reconferido no APK **release** com o REA: `debuggable` ausente (falso), `usesCleartextTraffic="false"`, `allowBackup="false"` |
+| 5 | `SYSTEM_ALERT_WINDOW` | baixa | **Corrigido.** Vinha do template do Expo, no manifest principal (não só no de debug). Bloqueada em `app.json`; ausente no release (REA) |
+
+### APK release (arm64) para o celular
+
+Gerado com JavaScript embutido (não depende de servidor), só `arm64-v8a`, assinado com chave própria guardada fora do repositório. Permissões finais: `INTERNET`, `USE_BIOMETRIC`, `VIBRATE`, `DETECT_SCREEN_CAPTURE`. `USE_BIOMETRIC` vem de uma biblioteca e o app ainda não usa biometria.
 
 ## Mapa OWASP MASVS
 
