@@ -1,36 +1,52 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# --- Segredos: NUNCA versionar ---
+.env
+.env.*
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+*seed*
+*mnemonic*
+*.wallet
 
-# dependencies
+# --- BinÃ¡rios de terceiros e artefatos de anÃ¡lise ---
+*.apk
+*.aab
+*.hbc
+*.bundle
+apk-*/
+decomp/
+
+# --- Clone do repositÃ³rio antigo (tem o prÃ³prio .git) ---
+repo/
+
+# --- DependÃªncias e builds ---
 node_modules/
-
-# Expo
+android/build/
+android/app/build/
+android/.gradle/
+android/.cxx/
 .expo/
 dist/
 web-build/
-expo-env.d.ts
 
-# Native
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
+# --- Sistema ---
 .DS_Store
-*.pem
+Thumbs.db
+*.log
 
-# local env files
-.env*.local
+# Configuracao de agente que vem nos templates (nao faz parte do app)
+app/.claude/
+app/AGENTS.md
+app/android/
+app/ios/
+wallet-core/dist/
 
-# typescript
-*.tsbuildinfo
+.claude/
+
+qa/out/
+
+# APK de teste publicado de proposito (assinado, com hash no README)
+!download/
+!download/*.apk
