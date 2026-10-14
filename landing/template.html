@@ -1,0 +1,474 @@
+<title>BR Bit Wallet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Conceito: palco preto com o neon do app. Camadas em profundidade (parallax) e gráficos que se desenham sozinhos.
+   Cor: preto, verde neon, verde mínimo, cinza frio, vermelho de queda, âmbar de aviso. Tipo: Space Grotesk (título), Manrope (texto), JetBrains Mono (dados). */
+:root {
+  --bg: #000000; --bg2: #05070a; --card: #0b0e12; --line: #1a2028; --line2: #27303b;
+  --fg: #f4f7f5; --muted: #93a09a; --green: #2bff88; --greenInk: #00140a; --greenDim: rgba(43,255,136,.14);
+  --red: #ff4d6d; --amber: #ffb020;
+  --display: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif; --body: 'Manrope', 'Segoe UI', system-ui, sans-serif; --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.6; overflow-x: hidden; }
+a { color: inherit; }
+img { display: block; }
+.wrap { width: 100%; max-width: 1160px; margin-inline: auto; padding-inline: 20px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.08; margin: 0; text-wrap: balance; letter-spacing: -.02em; }
+h2 { font-size: clamp(30px, 5vw, 52px); }
+h3 { font-size: 20px; letter-spacing: -.01em; }
+p { margin: 0; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--green); }
+.muted { color: var(--muted); }
+.g { color: var(--green); }
+
+/* ---------- navegação ---------- */
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 50; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: rgba(0,0,0,.62); border-bottom: 1px solid var(--line); }
+.nav .wrap { display: flex; align-items: center; gap: 22px; height: 62px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 600; font-size: 19px; text-decoration: none; }
+.brand img { width: 30px; height: 30px; border-radius: 8px; }
+.nav .links { display: flex; gap: 22px; margin-left: auto; font-size: 14px; color: var(--muted); }
+.nav .links a { text-decoration: none; }
+.nav .links a:hover { color: var(--fg); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 52px; padding: 0 26px; border-radius: 999px; font-family: var(--display); font-weight: 600; font-size: 16px; text-decoration: none; border: 1px solid transparent; cursor: pointer; transition: transform .2s, box-shadow .2s, background .2s; }
+.btn.primary { background: var(--green); color: var(--greenInk); box-shadow: 0 0 0 0 rgba(43,255,136,.5), 0 10px 40px rgba(43,255,136,.22); }
+.btn.primary:hover { transform: translateY(-2px); box-shadow: 0 0 0 6px rgba(43,255,136,.12), 0 14px 48px rgba(43,255,136,.34); }
+.btn.ghost { border-color: var(--line2); color: var(--fg); background: transparent; }
+.btn.ghost:hover { border-color: var(--green); color: var(--green); }
+.btn.sm { height: 40px; padding: 0 18px; font-size: 14px; }
+.btn:focus-visible, a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+@media (max-width: 760px) { .nav .links a:not(.btn) { display: none; } }
+
+/* ---------- hero ---------- */
+.hero { position: relative; overflow: hidden; padding-block: 56px 40px; }
+.layer { position: absolute; pointer-events: none; will-change: transform; transform: translate3d(0, var(--py, 0px), 0); }
+.grid-bg { inset: -10% -5% 0 -5%; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 56px 56px; opacity: .35; -webkit-mask-image: radial-gradient(ellipse 70% 60% at 65% 40%, #000 20%, transparent 75%); mask-image: radial-gradient(ellipse 70% 60% at 65% 40%, #000 20%, transparent 75%); }
+.orb { border-radius: 50%; filter: blur(70px); }
+.orb.a { width: 520px; height: 520px; right: -80px; top: -60px; background: radial-gradient(circle, rgba(43,255,136,.34), transparent 65%); }
+.orb.b { width: 360px; height: 360px; left: -120px; top: 320px; background: radial-gradient(circle, rgba(43,255,136,.16), transparent 70%); }
+.hero-inner { position: relative; display: grid; grid-template-columns: 1.05fr 1fr; gap: 24px; align-items: center; min-height: 640px; }
+.hero h1 { font-size: clamp(44px, 7.4vw, 92px); letter-spacing: -.035em; }
+.hero p.lead { margin-top: 22px; font-size: clamp(17px, 2vw, 20px); max-width: 520px; color: var(--muted); }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.fine { margin-top: 16px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.fine b { color: var(--amber); font-weight: 600; }
+.hero-chart { margin-top: 36px; max-width: 520px; }
+.hero-chart svg { width: 100%; height: auto; overflow: visible; }
+.hero-chart .line { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 8px rgba(43,255,136,.7)); stroke-dasharray: var(--len, 1200); animation: draw 3.2s cubic-bezier(.6,.05,.2,1) .3s both; }
+.hero-chart .area { fill: url(#hg); opacity: .9; animation: fadein 1.6s ease 2s both; }
+.hero-chart .dot { fill: var(--green); animation: fadein .4s ease 3.3s both, pulse 1.8s ease-in-out 3.6s infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes draw { from { stroke-dashoffset: var(--len, 1200); } to { stroke-dashoffset: 0; } }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.9); opacity: .55; } }
+
+.stage { position: relative; height: 640px; perspective: 1200px; }
+.pw { position: absolute; will-change: transform; transform: translate3d(0, var(--py, 0px), 0); }
+.pw.c { left: 50%; top: 20px; margin-left: -140px; z-index: 3; }
+.pw.l { left: 0; top: 120px; z-index: 2; }
+.pw.r { right: 0; top: 70px; z-index: 1; }
+.phone { width: 280px; border-radius: 38px; padding: 7px; background: #05080a; border: 1.5px solid rgba(43,255,136,.55); box-shadow: 0 0 0 5px rgba(43,255,136,.06), 0 0 60px rgba(43,255,136,.22), 0 30px 60px rgba(0,0,0,.7); transform: rotateY(var(--ry, 0deg)) rotateX(var(--rx, 0deg)); transition: transform .25s ease-out; animation: float 7s ease-in-out infinite; }
+.phone img { width: 100%; border-radius: 31px; }
+.pw.l .phone { width: 236px; animation-delay: -2.4s; }
+.pw.r .phone { width: 236px; animation-delay: -4.6s; }
+@keyframes float { 0%,100% { translate: 0 0; } 50% { translate: 0 -14px; } }
+@media (max-width: 920px) {
+  .hero-inner { grid-template-columns: 1fr; }
+  .stage { height: 560px; }
+  .phone { width: 230px; } .pw.c { margin-left: -115px; } .pw.l .phone, .pw.r .phone { width: 190px; }
+}
+@media (max-width: 520px) { .pw.l { left: -50px; } .pw.r { right: -50px; } }
+
+/* ---------- faixa em movimento ---------- */
+.ticker { border-block: 1px solid var(--line); background: var(--bg2); overflow: hidden; }
+.ticker-track { display: flex; width: max-content; animation: marquee 38s linear infinite; }
+.ticker span { padding: 16px 28px; font-family: var(--mono); font-size: 13px; letter-spacing: .08em; color: var(--muted); white-space: nowrap; }
+.ticker span::after { content: '◆'; margin-left: 56px; color: var(--green); opacity: .6; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+
+/* ---------- seções ---------- */
+section { padding-block: 96px; position: relative; }
+.head { max-width: 640px; display: grid; gap: 14px; margin-bottom: 48px; }
+.head p { color: var(--muted); font-size: 18px; }
+.feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.feat { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 26px; display: grid; gap: 10px; align-content: start; transition: border-color .25s, transform .25s; }
+.feat:hover { border-color: rgba(43,255,136,.5); transform: translateY(-4px); }
+.feat .ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: var(--greenDim); border: 1px solid rgba(43,255,136,.35); }
+.feat .ic svg { width: 22px; height: 22px; stroke: var(--green); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.feat p { color: var(--muted); font-size: 15px; }
+@media (max-width: 900px) { .feats { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 580px) { .feats { grid-template-columns: 1fr; } }
+
+/* mercado */
+.market { background: linear-gradient(180deg, var(--bg), var(--bg2) 50%, var(--bg)); overflow: hidden; }
+.market-grid { display: grid; grid-template-columns: 1fr 1.15fr; gap: 48px; align-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.chip { font-family: var(--mono); font-size: 12px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line2); color: var(--muted); }
+.chip.on { background: var(--green); color: var(--greenInk); border-color: var(--green); font-weight: 600; }
+.cv-card { border: 1px solid var(--line); border-radius: 26px; background: #050809; padding: 18px 18px 12px; box-shadow: 0 0 80px rgba(43,255,136,.08); }
+.cv-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 4px 6px 10px; }
+.cv-top b { font-family: var(--display); font-size: 22px; }
+.cv-top small { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+canvas#cv { width: 100%; height: 300px; display: block; }
+@media (max-width: 900px) { .market-grid { grid-template-columns: 1fr; } }
+
+/* segurança */
+.sec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.sec { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 26px; display: grid; grid-template-columns: 56px 1fr; gap: 18px; }
+.sec h3 { margin-bottom: 6px; }
+.sec p { color: var(--muted); font-size: 15px; }
+.ring { width: 56px; height: 56px; }
+.ring circle { fill: none; stroke-width: 3; }
+.ring .t { stroke: var(--line2); }
+.ring .p { stroke: var(--green); stroke-linecap: round; stroke-dasharray: 151; stroke-dashoffset: 151; animation: ring 2.4s ease-out forwards paused; filter: drop-shadow(0 0 4px rgba(43,255,136,.7)); }
+.in .ring .p { animation-play-state: running; }
+@keyframes ring { to { stroke-dashoffset: 22; } }
+.ring svg path { stroke: var(--green); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.counters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 16px; }
+.counter { border-top: 1px solid var(--line2); padding-top: 16px; }
+.counter b { display: block; font-family: var(--display); font-size: clamp(38px, 6vw, 64px); color: var(--green); line-height: 1; font-variant-numeric: tabular-nums; }
+.counter span { font-size: 14px; color: var(--muted); }
+@media (max-width: 760px) { .sec-grid { grid-template-columns: 1fr; } .counters { grid-template-columns: 1fr 1fr; } }
+
+/* galeria */
+.gallery { overflow: hidden; }
+.rail { display: flex; gap: 22px; padding: 30px 20px 60px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
+.shot { flex: 0 0 auto; width: 230px; scroll-snap-align: center; transform: translate3d(0, var(--py, 0px), 0); will-change: transform; }
+.shot .phone { width: 100%; animation: none; --ry: 0deg; padding: 6px; border-radius: 32px; }
+.shot .phone img { border-radius: 26px; }
+.shot figcaption { margin-top: 16px; font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; letter-spacing: .06em; }
+.shot { margin: 0; }
+.gal-note { margin-top: 8px; font-size: 13px; color: var(--muted); max-width: 640px; }
+
+/* download */
+.dl { background: radial-gradient(ellipse 60% 80% at 50% 100%, rgba(43,255,136,.14), transparent 70%), var(--bg); overflow: hidden; }
+.dl-card { position: relative; border: 1px solid rgba(43,255,136,.4); border-radius: 32px; padding: clamp(26px, 5vw, 56px); background: rgba(5,8,10,.8); box-shadow: 0 0 90px rgba(43,255,136,.14); display: grid; grid-template-columns: 1.1fr 1fr; gap: 40px; align-items: center; }
+.dl-card h2 { margin-bottom: 14px; }
+.steps { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 12px; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 32px 1fr; gap: 12px; color: var(--muted); font-size: 15px; }
+.steps li::before { content: counter(s); width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--greenDim); border: 1px solid rgba(43,255,136,.4); color: var(--green); font-family: var(--mono); font-size: 12px; }
+.warn { margin-top: 22px; padding: 14px 16px; border-radius: 16px; border: 1px solid rgba(255,176,32,.45); background: rgba(255,176,32,.06); color: #ffd48a; font-size: 14px; }
+.hash { margin-top: 18px; border: 1px solid var(--line2); border-radius: 16px; padding: 14px; background: #04070a; }
+.hash small { display: block; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.hash code { display: block; font-family: var(--mono); font-size: 12px; word-break: break-all; color: var(--fg); user-select: all; }
+.hash button { margin-top: 10px; background: none; border: 1px solid var(--line2); color: var(--fg); border-radius: 999px; padding: 6px 14px; font-family: var(--mono); font-size: 12px; cursor: pointer; }
+.hash button:hover { border-color: var(--green); color: var(--green); }
+.icon-big { width: 148px; height: 148px; border-radius: 34px; box-shadow: 0 0 70px rgba(43,255,136,.4); animation: float 6s ease-in-out infinite; }
+.dl-side { display: grid; justify-items: center; gap: 22px; text-align: center; }
+.dl-meta { font-family: var(--mono); font-size: 12px; color: var(--muted); display: grid; gap: 4px; }
+@media (max-width: 860px) { .dl-card { grid-template-columns: 1fr; } .dl-side { order: -1; } }
+
+details.limits { margin-top: 56px; border: 1px solid var(--line); border-radius: 20px; padding: 6px 22px; background: var(--card); }
+details.limits summary { cursor: pointer; padding: 16px 0; font-family: var(--display); font-weight: 600; font-size: 18px; list-style-position: outside; }
+details.limits ul { margin: 0 0 18px; padding-left: 20px; color: var(--muted); display: grid; gap: 8px; font-size: 15px; }
+
+footer { border-top: 1px solid var(--line); padding-block: 36px 56px; color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 16px 28px; justify-content: space-between; align-items: center; }
+footer a { color: var(--fg); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .ring .p { stroke-dashoffset: 22; }
+  .layer, .pw, .shot { transform: none !important; }
+}
+</style>
+
+<nav class="nav" aria-label="Principal">
+  <div class="wrap">
+    <a class="brand" href="#topo"><img src="{{ICON}}" alt="" width="30" height="30"> BR Bit</a>
+    <div class="links">
+      <a href="#recursos">Recursos</a>
+      <a href="#mercado">Mercado</a>
+      <a href="#seguranca">Segurança</a>
+      <a href="#telas">Telas</a>
+      <a class="btn primary sm" href="#baixar">Baixar</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="topo">
+  <div class="layer grid-bg" data-speed="0.10" aria-hidden="true"></div>
+  <div class="layer orb a" data-speed="0.22" aria-hidden="true"></div>
+  <div class="layer orb b" data-speed="0.35" aria-hidden="true"></div>
+  <div class="wrap hero-inner">
+    <div>
+      <p class="eyebrow">Carteira Bitcoin para Android</p>
+      <h1 style="margin-top:16px">Bitcoin sob<br><span class="g">o seu controle.</span></h1>
+      <p class="lead">Crie ou importe uma carteira, receba, envie e acompanhe o mercado em reais. As chaves ficam apenas no seu aparelho.</p>
+      <div class="cta">
+        <a class="btn primary" href="#baixar">Baixar o APK</a>
+        <a class="btn ghost" href="https://github.com/SRNOFACEXXXX/PROJETO_1.0" target="_blank" rel="noopener">Ver o código</a>
+      </div>
+      <p class="fine"><b>Versão de testes.</b> Rede padrão: testnet. Sem auditoria externa.</p>
+      <div class="hero-chart" aria-hidden="true">
+        <svg viewBox="0 0 520 110" preserveAspectRatio="none">
+          <defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2bff88" stop-opacity=".28"/><stop offset="1" stop-color="#2bff88" stop-opacity="0"/></linearGradient></defs>
+          <path class="area" id="hc-area" d=""/>
+          <path class="line" id="hc-line" d=""/>
+          <circle class="dot" id="hc-dot" r="5" cx="0" cy="0"/>
+        </svg>
+      </div>
+    </div>
+    <div class="stage" id="stage">
+      <div class="pw l" data-speed="0.12"><div class="phone" data-depth="1"><img src="{{IMG:07-mercado}}" alt="Tela do Mercado com comparativo de moedas" width="330" height="587"></div></div>
+      <div class="pw r" data-speed="-0.08"><div class="phone" data-depth="1.6"><img src="{{IMG:10-detalhe-velas-mira}}" alt="Gráfico de velas do Bitcoin com mira" width="330" height="587"></div></div>
+      <div class="pw c" data-speed="0.04"><div class="phone" data-depth="2.4"><img src="{{IMG:04-inicio}}" alt="Tela inicial da carteira" width="330" height="587"></div></div>
+    </div>
+  </div>
+</header>
+
+<div class="ticker" aria-hidden="true"><div class="ticker-track" id="ticker"></div></div>
+
+<section id="recursos">
+  <div class="wrap">
+    <div class="head">
+      <p class="eyebrow">O que você faz com ele</p>
+      <h2>Tudo de uma carteira, sem ruído.</h2>
+      <p>Seis telas que cobrem o caminho completo: da frase de recuperação ao gráfico de velas.</p>
+    </div>
+    <div class="feats">
+      <article class="feat"><div class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><h3>Criar ou importar</h3><p>Frase de 12 palavras oculta até você pedir, quiz de backup e PIN de 6 dígitos. Importa frases de 12 ou 24 palavras.</p></article>
+      <article class="feat"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg></div><h3>Receber</h3><p>QR, copiar e compartilhar. O endereço é calculado no aparelho e aparece mesmo sem internet.</p></article>
+      <article class="feat"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 20V8M7 13l5-5 5 5M5 4h14"/></svg></div><h3>Enviar</h3><p>Revisão completa, taxa lenta, normal ou rápida, botão MAX e "segure para enviar" com PIN.</p></article>
+      <article class="feat"><div class="ic"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15l4-5 3 3 5-7"/></svg></div><h3>Mercado em reais</h3><p>Comparativo entre moedas, lista com minigráficos e detalhe com linha, velas, volume e mira.</p></article>
+      <article class="feat"><div class="ic"><svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h9"/></svg></div><h3>Atividade</h3><p>O histórico real da carteira, com filtros de enviado e recebido.</p></article>
+      <article class="feat"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6L12 16.7 6.7 19.6l1.1-6L3.4 9.4l6-.8z"/></svg></div><h3>Nível e conquistas</h3><p>XP por backup confirmado, PIN criado e primeiro envio. Progresso calculado de verdade, não decorativo.</p></article>
+    </div>
+  </div>
+</section>
+
+<section class="market" id="mercado">
+  <div class="wrap market-grid">
+    <div>
+      <p class="eyebrow">Mercado</p>
+      <h2 style="margin-top:14px">Gráficos feitos à mão, no padrão de quem negocia.</h2>
+      <p class="muted" style="margin-top:18px;font-size:18px">Linha ou velas, volume, mira que segue o dedo e cinco janelas de tempo. O desenho é próprio, sem biblioteca de gráficos, e lê os preços direto de uma API pública de mercado.</p>
+      <div class="chips" aria-label="Janelas de tempo"><span class="chip">24H</span><span class="chip on">7D</span><span class="chip">1M</span><span class="chip">3M</span><span class="chip">1A</span></div>
+    </div>
+    <div class="cv-card">
+      <div class="cv-top"><b>Ilustração animada</b><small>candles gerados na página, não são preços reais</small></div>
+      <canvas id="cv" aria-label="Animação de gráfico de velas" role="img"></canvas>
+    </div>
+  </div>
+</section>
+
+<section id="seguranca">
+  <div class="wrap">
+    <div class="head">
+      <p class="eyebrow">Segurança</p>
+      <h2>Feita para desconfiar de si mesma.</h2>
+      <p>Cada controle abaixo foi testado, e o que ainda falta está listado com todas as letras.</p>
+    </div>
+    <div class="sec-grid" id="secgrid">
+      <article class="sec"><svg class="ring" viewBox="0 0 56 56"><circle class="t" cx="28" cy="28" r="24"/><circle class="p" cx="28" cy="28" r="24" transform="rotate(-90 28 28)"/></svg><div><h3>Cofre criptografado</h3><p>A seed fica num cofre scrypt + XChaCha20-Poly1305, guardado no Android Keystore. Nunca em log, backup ou área de transferência.</p></div></article>
+      <article class="sec"><svg class="ring" viewBox="0 0 56 56"><circle class="t" cx="28" cy="28" r="24"/><circle class="p" cx="28" cy="28" r="24" transform="rotate(-90 28 28)"/></svg><div><h3>PIN que se defende</h3><p>Bloqueio que dobra a cada erro (30 s, 60 s…) e continua valendo mesmo se você fechar o app.</p></div></article>
+      <article class="sec"><svg class="ring" viewBox="0 0 56 56"><circle class="t" cx="28" cy="28" r="24"/><circle class="p" cx="28" cy="28" r="24" transform="rotate(-90 28 28)"/></svg><div><h3>Telas secretas</h3><p>Frase, quiz, PIN e importação bloqueiam captura e gravação de tela. O app bloqueia sozinho após 30 s em segundo plano.</p></div></article>
+      <article class="sec"><svg class="ring" viewBox="0 0 56 56"><circle class="t" cx="28" cy="28" r="24"/><circle class="p" cx="28" cy="28" r="24" transform="rotate(-90 28 28)"/></svg><div><h3>Envio sem duplicar</h3><p>Uma transmissão nunca é repetida às cegas, porque uma falha no meio pode já ter chegado à rede.</p></div></article>
+    </div>
+    <div class="counters" id="counters">
+      <div class="counter"><b data-n="185">185</b><span>testes unitários do núcleo</span></div>
+      <div class="counter"><b data-n="23">23</b><span>testes ao vivo na blockchain</span></div>
+      <div class="counter"><b data-n="8">8</b><span>suítes de ponta a ponta num Android emulado</span></div>
+      <div class="counter"><b data-n="0">0</b><span>rastreadores e analytics</span></div>
+    </div>
+    <details class="limits">
+      <summary>O que ainda não está resolvido</summary>
+      <ul>
+        <li>O PIN de 6 dígitos não resiste a um ataque offline sozinho. A defesa real é o Keystore, e a biometria ligada a ele ainda não existe.</li>
+        <li>Cada consulta ao mempool.space revela IP e endereços. Um servidor próprio ainda não foi implementado.</li>
+        <li>Sem fixação de certificado e sem RBF/CPFP (uma transação com taxa baixa pode ficar presa).</li>
+        <li>Nunca foi usado na mainnet com fundos. A mainnet só gerou e validou endereços descartáveis.</li>
+        <li>Solana, memecoins, Trocar e Comprar aparecem como "em breve". Não há auditoria externa.</li>
+      </ul>
+    </details>
+  </div>
+</section>
+
+<section class="gallery" id="telas">
+  <div class="wrap">
+    <div class="head">
+      <p class="eyebrow">Telas</p>
+      <h2>O app inteiro, como ele é.</h2>
+      <p>Capturas reais de um Android, em testnet, com uma carteira descartável.</p>
+    </div>
+  </div>
+  <div class="rail" id="rail" tabindex="0" aria-label="Galeria de telas, role para o lado">
+    <figure class="shot" data-speed="0.05"><div class="phone"><img src="{{IMG:01-boas-vindas}}" alt="Boas-vindas" width="330" height="587" loading="lazy"></div><figcaption>BOAS-VINDAS</figcaption></figure>
+    <figure class="shot" data-speed="-0.05"><div class="phone"><img src="{{IMG:03-aviso-de-seguranca}}" alt="Aviso de segurança" width="330" height="587" loading="lazy"></div><figcaption>AVISO</figcaption></figure>
+    <figure class="shot" data-speed="0.05"><div class="phone"><img src="{{IMG:04-inicio}}" alt="Início" width="330" height="587" loading="lazy"></div><figcaption>INÍCIO</figcaption></figure>
+    <figure class="shot" data-speed="-0.05"><div class="phone"><img src="{{IMG:05-receber}}" alt="Receber" width="330" height="587" loading="lazy"></div><figcaption>RECEBER</figcaption></figure>
+    <figure class="shot" data-speed="0.05"><div class="phone"><img src="{{IMG:06-enviar}}" alt="Enviar" width="330" height="587" loading="lazy"></div><figcaption>ENVIAR</figcaption></figure>
+    <figure class="shot" data-speed="-0.05"><div class="phone"><img src="{{IMG:07-mercado}}" alt="Mercado" width="330" height="587" loading="lazy"></div><figcaption>MERCADO</figcaption></figure>
+    <figure class="shot" data-speed="0.05"><div class="phone"><img src="{{IMG:09-detalhe-linha}}" alt="Detalhe em linha" width="330" height="587" loading="lazy"></div><figcaption>DETALHE · LINHA</figcaption></figure>
+    <figure class="shot" data-speed="-0.05"><div class="phone"><img src="{{IMG:10-detalhe-velas-mira}}" alt="Detalhe em velas com mira" width="330" height="587" loading="lazy"></div><figcaption>DETALHE · VELAS</figcaption></figure>
+    <figure class="shot" data-speed="0.05"><div class="phone"><img src="{{IMG:11-atividade}}" alt="Atividade" width="330" height="587" loading="lazy"></div><figcaption>ATIVIDADE</figcaption></figure>
+    <figure class="shot" data-speed="-0.05"><div class="phone"><img src="{{IMG:12-ajustes}}" alt="Ajustes" width="330" height="587" loading="lazy"></div><figcaption>AJUSTES</figcaption></figure>
+  </div>
+  <div class="wrap"><p class="gal-note">As telas da frase de recuperação, do quiz, do PIN e da importação não aparecem aqui porque o app bloqueia a captura delas.</p></div>
+</section>
+
+<section class="dl" id="baixar">
+  <div class="wrap">
+    <div class="dl-card">
+      <div>
+        <p class="eyebrow">Baixar</p>
+        <h2>Instale no seu Android.</h2>
+        <p class="muted" style="font-size:17px">APK de teste, arm64, com o JavaScript embutido. Não precisa de computador nem de servidor.</p>
+        <ol class="steps">
+          <li><span>Baixe o APK e confira o hash abaixo.</span></li>
+          <li><span>Abra o arquivo e permita "instalar apps desconhecidos" para o navegador.</span></li>
+          <li><span>Abra o BR Bit, crie uma carteira de teste e use a testnet.</span></li>
+        </ol>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/SRNOFACEXXXX/PROJETO_1.0/raw/main/download/HotWalletBTC-arm64.apk" target="_blank" rel="noopener">Baixar HotWalletBTC-arm64.apk</a>
+          <a class="btn ghost" href="https://github.com/SRNOFACEXXXX/PROJETO_1.0" target="_blank" rel="noopener">Código no GitHub</a>
+        </div>
+        <div class="hash">
+          <small>SHA-256 do arquivo</small>
+          <code id="sha">{{SHA256}}</code>
+          <button type="button" id="copy">Copiar hash</button>
+        </div>
+        <p class="warn"><b>Versão de testes, sem auditoria externa.</b> Use apenas carteiras de teste e valores sem importância. Nunca guarde aqui dinheiro que você não aceita perder.</p>
+      </div>
+      <div class="dl-side">
+        <img class="icon-big" src="{{ICON}}" alt="Ícone do BR Bit" width="148" height="148">
+        <div class="dl-meta"><span>BR Bit Wallet · 1.0.0</span><span>Android 7.0 ou superior · arm64</span><span>Pacote com.brbit.hotwallet</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>BR Bit · carteira Bitcoin de código aberto</span>
+    <span>Projeto de portfólio. <a href="https://github.com/SRNOFACEXXXX/PROJETO_1.0" target="_blank" rel="noopener">Código e documentação</a></span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* --- gráfico do hero: série fixa, desenhada por CSS --- */
+  (function hero() {
+    var pts = [], n = 28, v = 70, seed = 7;
+    function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    for (var i = 0; i < n; i++) { v += (rnd() - 0.38) * 14 - 1.2; v = Math.max(18, Math.min(96, v)); pts.push(v); }
+    var W = 520, H = 110, step = W / (n - 1), d = '', xs = [];
+    pts.forEach(function (p, i) { var x = i * step, y = H - p; xs.push([x, y]); d += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1); });
+    var line = document.getElementById('hc-line'), area = document.getElementById('hc-area'), dot = document.getElementById('hc-dot');
+    line.setAttribute('d', d);
+    area.setAttribute('d', d + 'L' + W + ' ' + H + 'L0 ' + H + 'Z');
+    var last = xs[xs.length - 1]; dot.setAttribute('cx', last[0]); dot.setAttribute('cy', last[1]);
+    try { var len = Math.ceil(line.getTotalLength()); line.style.setProperty('--len', len); } catch (e) {}
+  })();
+
+  /* --- faixa em movimento --- */
+  (function ticker() {
+    var items = ['BIP39', 'BIP32', 'BIP84 · NATIVE SEGWIT', 'PSBT', 'SCRYPT', 'XCHACHA20-POLY1305', 'ANDROID KEYSTORE', 'TESTNET4', 'REACT NATIVE', 'HERMES', 'OWASP MASVS', 'REA · JADX'];
+    var html = ''; for (var r = 0; r < 2; r++) items.forEach(function (t) { html += '<span>' + t + '</span>'; });
+    document.getElementById('ticker').innerHTML = html;
+  })();
+
+  /* --- parallax por rolagem --- */
+  var layers = [].slice.call(document.querySelectorAll('[data-speed]'));
+  var ticking = false;
+  function paint() {
+    ticking = false;
+    var vh = window.innerHeight;
+    layers.forEach(function (el) {
+      var host = el.classList.contains('layer') ? el.parentElement : el;
+      var r = host.getBoundingClientRect();
+      if (r.bottom < -400 || r.top > vh + 400) return;
+      var off = (r.top + r.height / 2) - vh / 2;
+      el.style.setProperty('--py', (-off * parseFloat(el.dataset.speed)).toFixed(1) + 'px');
+    });
+  }
+  function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(paint); } }
+  if (!reduce) { window.addEventListener('scroll', onScroll, { passive: true }); window.addEventListener('resize', onScroll); paint(); }
+
+  /* --- inclinação 3D dos celulares com o mouse --- */
+  var stage = document.getElementById('stage');
+  if (stage && !reduce && window.matchMedia('(hover: hover)').matches) {
+    stage.addEventListener('mousemove', function (e) {
+      var b = stage.getBoundingClientRect(), x = (e.clientX - b.left) / b.width - 0.5, y = (e.clientY - b.top) / b.height - 0.5;
+      [].forEach.call(stage.querySelectorAll('.phone'), function (p) {
+        var k = parseFloat(p.dataset.depth || 1);
+        p.style.setProperty('--ry', (x * 14 * k).toFixed(2) + 'deg'); p.style.setProperty('--rx', (-y * 10 * k).toFixed(2) + 'deg');
+      });
+    });
+    stage.addEventListener('mouseleave', function () { [].forEach.call(stage.querySelectorAll('.phone'), function (p) { p.style.setProperty('--ry', '0deg'); p.style.setProperty('--rx', '0deg'); }); });
+  }
+
+  /* --- entradas: contadores e anéis (o texto já nasce com o valor final) --- */
+  function inView(el, cb, once) {
+    if (!('IntersectionObserver' in window)) { cb(true); return; }
+    var io = new IntersectionObserver(function (es) { es.forEach(function (e) { cb(e.isIntersecting); if (e.isIntersecting && once) io.disconnect(); }); }, { threshold: 0.3 });
+    io.observe(el);
+  }
+  inView(document.getElementById('secgrid'), function (v) { if (v) document.getElementById('secgrid').classList.add('in'); }, true);
+  inView(document.getElementById('counters'), function (v) {
+    if (!v || reduce) return;
+    [].forEach.call(document.querySelectorAll('#counters b'), function (b) {
+      var end = parseInt(b.dataset.n, 10), t0 = performance.now(), dur = 1500;
+      (function tick(t) { var k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); b.textContent = Math.round(end * e); if (k < 1) requestAnimationFrame(tick); else b.textContent = end; })(t0);
+    });
+  }, true);
+
+  /* --- candles animados (ilustração, não são preços reais) --- */
+  (function candles() {
+    var cv = document.getElementById('cv'); if (!cv) return;
+    var ctx = cv.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 2), W = 0, H = 0;
+    var seed = 11; function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    var MAXC = 46, cs = [], price = 100;
+    function next() { var o = price, c = o + (rnd() - 0.46) * 7, hi = Math.max(o, c) + rnd() * 3.2, lo = Math.min(o, c) - rnd() * 3.2; price = c; return { o: o, c: c, h: hi, l: lo, v: 0.25 + rnd() * 0.75 }; }
+    for (var i = 0; i < MAXC; i++) cs.push(next());
+    function size() { var r = cv.getBoundingClientRect(); W = r.width; H = r.height; cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); draw(1); }
+    var slide = 0;
+    function draw(p) {
+      ctx.clearRect(0, 0, W, H);
+      var padR = 70, padB = 46, plotW = W - padR, plotH = H - padB, cw = plotW / MAXC;
+      var mn = Infinity, mx = -Infinity; cs.forEach(function (c) { mn = Math.min(mn, c.l); mx = Math.max(mx, c.h); });
+      var span = (mx - mn) || 1; mn -= span * .08; mx += span * .08;
+      function Y(v) { return plotH * (1 - (v - mn) / (mx - mn)); }
+      ctx.strokeStyle = 'rgba(255,255,255,.07)'; ctx.lineWidth = 1; ctx.setLineDash([3, 5]); ctx.font = '11px JetBrains Mono, monospace'; ctx.fillStyle = 'rgba(147,160,154,.8)';
+      for (var g = 0; g <= 4; g++) { var gy = Math.round(plotH * g / 4) + .5; ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(plotW, gy); ctx.stroke(); ctx.fillText((mx - (mx - mn) * g / 4).toFixed(1), plotW + 8, gy + 4); }
+      ctx.setLineDash([]);
+      var off = -slide * cw;
+      cs.forEach(function (c, i) {
+        var x = i * cw + off + cw / 2, up = c.c >= c.o, col = up ? '#2bff88' : '#ff4d6d';
+        if (x < -cw || x > plotW + cw) return;
+        ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(x, Y(c.h)); ctx.lineTo(x, Y(c.l)); ctx.stroke();
+        var top = Y(Math.max(c.o, c.c)), hh = Math.max(2, Math.abs(Y(c.o) - Y(c.c)));
+        ctx.fillRect(x - cw * .32, top, cw * .64, hh);
+        ctx.globalAlpha = .32; ctx.fillRect(x - cw * .32, H - 4 - c.v * (padB - 10), cw * .64, c.v * (padB - 10)); ctx.globalAlpha = 1;
+      });
+      var lastC = cs[cs.length - 1], ly = Y(lastC.c), col2 = lastC.c >= lastC.o ? '#2bff88' : '#ff4d6d';
+      ctx.strokeStyle = col2; ctx.setLineDash([4, 4]); ctx.globalAlpha = .8; ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(plotW, ly); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      ctx.fillStyle = col2; var tw = 56; ctx.fillRect(plotW + 4, ly - 10, tw, 20); ctx.fillStyle = '#00140a'; ctx.fillText(lastC.c.toFixed(1), plotW + 9, ly + 4);
+    }
+    var running = false, last = 0;
+    function loop(t) {
+      if (!running) return;
+      var dt = Math.min(64, t - last); last = t; slide += dt / 900;
+      if (slide >= 1) { slide -= 1; cs.shift(); cs.push(next()); }
+      draw(slide); requestAnimationFrame(loop);
+    }
+    size(); window.addEventListener('resize', size);
+    if (!reduce) inView(cv, function (v) { if (v && !running) { running = true; last = performance.now(); requestAnimationFrame(loop); } else if (!v) running = false; }, false);
+    if (window.document.fonts && document.fonts.ready) document.fonts.ready.then(function () { draw(slide); });
+  })();
+
+  /* --- copiar hash --- */
+  var btn = document.getElementById('copy'), sha = document.getElementById('sha');
+  btn.addEventListener('click', function () {
+    var done = function () { btn.textContent = 'Copiado'; setTimeout(function () { btn.textContent = 'Copiar hash'; }, 1800); };
+    var fallback = function () { var r = document.createRange(); r.selectNodeContents(sha); var s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = 'Selecionado, copie com Ctrl+C'; };
+    try { navigator.clipboard.writeText(sha.textContent.trim()).then(done, fallback); } catch (e) { fallback(); }
+  });
+})();
+</script>
