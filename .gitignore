@@ -46,3 +46,7 @@ wallet-core/dist/
 .claude/
 
 qa/out/
+
+# APK de teste publicado de proposito (assinado, com hash no README)
+!download/
+!download/*.apk
