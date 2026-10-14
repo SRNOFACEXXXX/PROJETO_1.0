@@ -20,10 +20,10 @@ Registro vivo da validação. Cada item só vira ✅ depois de rodar o teste e v
 | 3c | Resiliência de rede (HTTP 429, queda do servidor, tela nunca presa) | 15 testes offline + E2E | ✅ |
 | 4 | Bloquear/desbloquear; PIN errado; bloqueio que dobra (30→60 s) e sobrevive a reabrir o app | `qa/e2e-lock-unlock.ps1` | ✅ 10/10 |
 | 5 | Navegação, botão Voltar do Android, Mercado (comparativo, lista, detalhe, velas, mira), Atividade, Ver frase com PIN | `qa/e2e-navigation.ps1` | ✅ 11/11 |
-| 6 | Importar frase (válida e inválida) | Robô | ⬜ |
-| 7 | Enviar: validações, revisão, "segure para enviar", PIN, broadcast (servidor de testes) | Robô + servidor falso | ⬜ |
-| 8 | Ajustes: trocar rede, apagar carteira | Robô | ⬜ (trocar rede ✅ em 3b) |
-| 9 | Bloqueio automático em segundo plano | Robô | ⬜ |
+| 6 | Importar frase: inválida (checksum, palavra fora da lista), 24 palavras, maiúsculas/espaços extras, endereço = derivação independente | `qa/e2e-import.ps1` | ✅ 5/5 |
+| 7 | Enviar: validações, MAX, revisão, "segure para enviar", PIN, **assinatura verificada por outra biblioteca**, troco, taxa, falha de rede sem duplicar | `qa/e2e-send.ps1` + `qa/fake-mempool.mjs` (só testnet) | ✅ 9/9 |
+| 8 | Ajustes: trocar rede (✅ em 3b), ver frase com PIN (✅ em 5), apagar carteira | Robô | ✅ / apagar ⬜ |
+| 9 | Bloqueio automático em segundo plano (< 30 s volta direto; > 30 s volta bloqueada; Receber não expõe o endereço) | `qa/e2e-autolock.ps1` | ✅ 5/5 |
 | 10 | Revisão de segurança (REA + checklist OWASP MASVS) | Revisão | ⬜ |
 | 11 | Documentação final | README | ⬜ |
 
@@ -65,6 +65,9 @@ Desempenho medido no emulador (Hermes, modo desenvolvimento): abrir o cofre **~8
 | Teste de "bloqueio sobrevive a reabrir" dava falso alarme: reiniciar o app no emulador leva ~25 s e o bloqueio de 30 s expirava | O veredito usa o tempo real entre o bloqueio e o envio do PIN (falha de segurança só se < 50 s de 60 s) e aproveita que o bloqueio dobra para 60 s |
 | `GetNewClosure()` não enxerga `$script:*` (rolagem automática quebrava) | O caminho do `adb` é capturado antes de criar o bloco |
 | Texto "Pergunta 1 de 3." faz parte de uma frase maior na tela | Busca por trecho (`Wait-Match`) |
+| `adb input text` perdia caracteres em frases longas e o código de espaço `%s` era cortado entre pedaços | Digitação em pedaços de 32 caracteres sem cortar o `%s`, numa única chamada |
+| Campo de várias linhas: "ir ao fim" só vai ao fim da linha, sobravam palavras do texto antigo | Apaga para os dois lados do cursor (apagar adiante + apagar para trás) |
+| `Start-Process` sem aspas partia o caminho com espaços ("PROJETOS GITHUB") | Aspas no caminho do servidor de testes |
 
 ## Regras do teste
 

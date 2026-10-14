@@ -214,13 +214,30 @@ function Get-ConfirmFields {
 }
 
 # Limpa o campo e digita. Funciona mesmo se já houver texto.
-function Set-Field($fieldNode, [string]$text) {
+function Set-Field($fieldNode, [string]$text, [int]$clear = 80) {
     $c = Get-Center $fieldNode
     & $script:Adb shell input tap $c.X $c.Y
     Start-Sleep -Milliseconds 300
     & $script:Adb shell input keyevent KEYCODE_MOVE_END
-    1..20 | ForEach-Object { & $script:Adb shell input keyevent KEYCODE_DEL }
-    if ($text) { & $script:Adb shell input text ($text -replace ' ', '%s') }
+    # `$clear` "apagar" numa única chamada (um endereço tem 42 caracteres; uma frase de 24 palavras, ~200).
+    # Em campos de várias linhas "ir ao fim" só vai ao fim da LINHA: apaga para os dois lados do cursor
+    # (112 = apagar adiante, 67 = apagar para trás).
+    & $script:Adb shell ('input keyevent ' + (((1..$clear | ForEach-Object { '112' }) + (1..$clear | ForEach-Object { '67' })) -join ' '))
+    if ($text) {
+        # `input text` perde caracteres em textos longos com o emulador ocupado: digita em pedaços de 32
+        # caracteres, numa única chamada ao adb, com uma pausa curta entre eles.
+        $safe = $text -replace ' ', '%s'
+        $chunks = @()
+        $i = 0
+        while ($i -lt $safe.Length) {
+            $len = [Math]::Min(32, $safe.Length - $i)
+            # nunca corta entre o '%' e o 's' do código de espaço (senão sai "%s" literal na tela)
+            if ($len -gt 1 -and $safe[$i + $len - 1] -eq '%') { $len-- }
+            $chunks += 'input text ' + $safe.Substring($i, $len)
+            $i += $len
+        }
+        & $script:Adb shell ($chunks -join '; sleep 0.25; ')
+    }
     Start-Sleep -Milliseconds 300
 }
 
